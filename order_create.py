@@ -433,8 +433,23 @@ def render_create_order(df):
                 time.sleep(1)
 
         if st.session_state["auto_sync_enabled"]:
-            schedule.clear()
-            schedule.every(st.session_state["auto_sync_interval"]).minutes.do(sync_data, is_auto=True)
+            current_interval = st.session_state["auto_sync_interval"]
+            needs_reschedule = False
+            
+            if "last_scheduled_interval" not in st.session_state or st.session_state["last_scheduled_interval"] != current_interval:
+                needs_reschedule = True
+            
+            if needs_reschedule:
+                schedule.clear()
+                schedule.every(current_interval).minutes.do(sync_data, is_auto=True)
+                st.session_state["last_scheduled_interval"] = current_interval
+                print(f"[定时同步] 已设置自动同步，间隔{current_interval}分钟")
+            
             if "schedule_thread" not in st.session_state or not st.session_state["schedule_thread"].is_alive():
                 st.session_state["schedule_thread"] = threading.Thread(target=schedule_runner, daemon=True)
                 st.session_state["schedule_thread"].start()
+                print(f"[定时同步] 调度线程已启动")
+        else:
+            if "schedule_thread" in st.session_state and st.session_state["schedule_thread"].is_alive():
+                st.session_state["auto_sync_enabled"] = False
+                print(f"[定时同步] 自动同步已关闭")
