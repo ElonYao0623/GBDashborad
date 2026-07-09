@@ -237,7 +237,7 @@ def configure_matplotlib_font():
     chinese_fonts = [
         "SimHei", "Microsoft YaHei", "Microsoft YaHei UI",
         "Noto Sans SC", "Noto Sans CJK SC", "Noto Sans CJK",
-        "Arial Unicode MS", "WenQuanYi Micro Hei",
+        "Arial Unicode MS", "WenQuanYi Zen Hei",
         "Heiti SC", "Heiti TC", "STSong", "STHeiti",
         "DejaVu Sans"
     ]
