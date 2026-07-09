@@ -339,6 +339,8 @@ def render_create_order(df):
             st.session_state["auto_sync_enabled"] = True
         if "auto_sync_interval" not in st.session_state:
             st.session_state["auto_sync_interval"] = 60
+        if "auto_sync_alert" not in st.session_state:
+            st.session_state["auto_sync_alert"] = None
 
         st.info(t["feishu_tip"])
         col1, col2, col3 = st.columns([2, 1, 1])
@@ -362,11 +364,23 @@ def render_create_order(df):
         if st.session_state["last_sync_time"]:
             st.success(t["last_sync_text"].format(st.session_state["last_sync_time"]))
 
-        def sync_data():
+        if st.session_state["auto_sync_alert"]:
+            alert_type, alert_msg = st.session_state["auto_sync_alert"]
+            if alert_type == "success":
+                st.success(alert_msg)
+            elif alert_type == "warning":
+                st.warning(alert_msg)
+            elif alert_type == "error":
+                st.error(alert_msg)
+            st.session_state["auto_sync_alert"] = None
+
+        def sync_data(is_auto=False):
             try:
                 sync_df = fetch_feishu_table()
                 if sync_df.empty:
                     print("[自动同步] 飞书表格无有效数据")
+                    if is_auto:
+                        st.session_state["auto_sync_alert"] = ("warning", "飞书表格无有效数据")
                     return None
                 
                 col_mapping = {
@@ -382,10 +396,15 @@ def render_create_order(df):
                 beijing_tz = pytz.timezone('Asia/Shanghai')
                 beijing_time = datetime.now(beijing_tz)
                 st.session_state["last_sync_time"] = beijing_time.strftime("%Y-%m-%d %H:%M:%S")
+                sync_time_str = st.session_state["last_sync_time"]
                 print(f"[自动同步] 完成: 飞书读取{len(sync_df)}条, 完全覆盖本地数据")
+                if is_auto:
+                    st.session_state["auto_sync_alert"] = ("success", f"🔄 自动同步完成！读取{len(sync_df)}条数据，同步时间: {sync_time_str}")
                 return len(sync_df), 0, 0
             except Exception as err:
                 print(f"[自动同步] 失败: {str(err)}")
+                if is_auto:
+                    st.session_state["auto_sync_alert"] = ("error", f"自动同步失败: {str(err)}")
                 raise err
 
         def run_sync():
@@ -415,7 +434,7 @@ def render_create_order(df):
 
         if st.session_state["auto_sync_enabled"]:
             schedule.clear()
-            schedule.every(st.session_state["auto_sync_interval"]).minutes.do(sync_data)
+            schedule.every(st.session_state["auto_sync_interval"]).minutes.do(sync_data, is_auto=True)
             if "schedule_thread" not in st.session_state or not st.session_state["schedule_thread"].is_alive():
                 st.session_state["schedule_thread"] = threading.Thread(target=schedule_runner, daemon=True)
                 st.session_state["schedule_thread"].start()
