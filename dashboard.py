@@ -47,24 +47,8 @@ PAGE_TEXT = {
 }
 def render_dashboard(df):
     import matplotlib.pyplot as plt
-    import matplotlib.font_manager as fm
-    import matplotlib
-    matplotlib.use('Agg')
-    available_fonts = [f.name for f in fm.fontManager.ttflist]
-    chinese_fonts = ["SimHei", "Microsoft YaHei", "Arial Unicode MS", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK JP", "WenQuanYi Micro Hei", "Heiti SC", "Heiti TC"]
-    selected_font = None
-    for font in chinese_fonts:
-        if font in available_fonts:
-            selected_font = font
-            break
-    if selected_font:
-        plt.rcParams["font.family"] = selected_font
-        plt.rcParams["font.sans-serif"] = [selected_font]
-        plt.rcParams["axes.unicode_minus"] = False
-    else:
-        plt.rcParams["font.family"] = ["DejaVu Sans", "Arial Unicode MS"]
-        plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "Arial Unicode MS"]
-        plt.rcParams["axes.unicode_minus"] = False
+    from config import configure_matplotlib_font
+    configure_matplotlib_font()
     lang = st.session_state.get("lang", "zh")
     t = PAGE_TEXT[lang]
     view_label = f"🔍 {t['btn_view']}"
