@@ -38,3 +38,6 @@ Thumbs.db
 # 临时文件
 tmp/
 temp/
+
+# 字体目录
+fonts/
