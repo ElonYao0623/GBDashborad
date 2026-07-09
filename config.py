@@ -209,15 +209,25 @@ def configure_matplotlib_font():
     font_dir = os.path.join(os.path.dirname(__file__), "fonts")
     os.makedirs(font_dir, exist_ok=True)
     
-    font_path = os.path.join(font_dir, "NotoSansCJK-SC.otf")
+    font_path = os.path.join(font_dir, "NotoSansCJKsc-Regular.otf")
     
     if not os.path.exists(font_path):
         try:
             import urllib.request
-            url = "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJK-SC-Regular.otf"
-            urllib.request.urlretrieve(url, font_path)
-        except:
-            pass
+            import zipfile
+            import io
+            url = "https://github.com/notofonts/noto-cjk/releases/download/Sans2.004/08_NotoSansCJKsc.zip"
+            response = urllib.request.urlopen(url)
+            zip_data = response.read()
+            with zipfile.ZipFile(io.BytesIO(zip_data)) as zf:
+                for name in zf.namelist():
+                    if "Regular" in name:
+                        zf.extract(name, font_dir)
+                        os.rename(os.path.join(font_dir, name), font_path)
+                        break
+            print("[字体配置] 字体下载完成")
+        except Exception as e:
+            print(f"[字体配置] 字体下载失败: {e}")
     
     if os.path.exists(font_path):
         try:
@@ -237,7 +247,7 @@ def configure_matplotlib_font():
     chinese_fonts = [
         "SimHei", "Microsoft YaHei", "Microsoft YaHei UI",
         "Noto Sans SC", "Noto Sans CJK SC", "Noto Sans CJK",
-        "Arial Unicode MS", "WenQuanYi Zen Hei",
+        "Arial Unicode MS", "WenQuanYi Micro Hei",
         "Heiti SC", "Heiti TC", "STSong", "STHeiti",
         "DejaVu Sans"
     ]
