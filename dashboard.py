@@ -47,8 +47,10 @@ PAGE_TEXT = {
 }
 def render_dashboard(df):
     import matplotlib.pyplot as plt
+    import matplotlib.font_manager as fm
     from config import configure_matplotlib_font
     configure_matplotlib_font()
+    font_prop = fm.FontProperties()
     lang = st.session_state.get("lang", "zh")
     t = PAGE_TEXT[lang]
     view_label = f"🔍 {t['btn_view']}"
@@ -109,8 +111,8 @@ def render_dashboard(df):
             st.info(t["no_data_text"])
         else:
             fig,ax = plt.subplots(figsize=(4.2,4.2))
-            ax.pie(values, labels=labels, autopct="%1.1f%%")
-            ax.set_title(t["pie_title"])
+            ax.pie(values, labels=labels, autopct="%1.1f%%", textprops={"fontproperties": font_prop})
+            ax.set_title(t["pie_title"], fontproperties=font_prop)
             ax.axis("equal")
             st.pyplot(fig)
     st.divider()
@@ -154,11 +156,12 @@ def render_dashboard(df):
     
     fig3,ax3 = plt.subplots(figsize=(11,4.5))
     bars = ax3.bar(group_cnt.index, group_cnt.values, color="#10b981")
-    ax3.set_xlabel(t["days_x_label"])
-    ax3.set_ylabel(t["days_y_label"])
+    ax3.set_xlabel(t["days_x_label"], fontproperties=font_prop)
+    ax3.set_ylabel(t["days_y_label"], fontproperties=font_prop)
+    ax3.tick_params(axis="x", labelsize=10)
     for bar in bars:
         h = bar.get_height()
-        ax3.text(bar.get_x()+bar.get_width()/2, h, str(h), ha="center", va="bottom")
+        ax3.text(bar.get_x()+bar.get_width()/2, h, str(h), ha="center", va="bottom", fontproperties=font_prop)
     st.pyplot(fig3)
     st.divider()
     st.subheader(t["team_chart_title"])
@@ -169,10 +172,10 @@ def render_dashboard(df):
     team_cnt = team_df["team_temp"].value_counts()
     fig2,ax2 = plt.subplots(figsize=(11,4.5))
     bars = ax2.bar(team_cnt.index, team_cnt.values, color="#3b82f6")
-    ax2.set_xlabel(t["team_x_label"])
-    ax2.set_ylabel(t["team_y_label"])
-    ax2.tick_params(axis="x", rotation=45)
+    ax2.set_xlabel(t["team_x_label"], fontproperties=font_prop)
+    ax2.set_ylabel(t["team_y_label"], fontproperties=font_prop)
+    ax2.tick_params(axis="x", rotation=45, labelsize=10)
     for bar in bars:
         h = bar.get_height()
-        ax2.text(bar.get_x()+bar.get_width()/2, h, str(h), ha="center", va="bottom")
+        ax2.text(bar.get_x()+bar.get_width()/2, h, str(h), ha="center", va="bottom", fontproperties=font_prop)
     st.pyplot(fig2)
