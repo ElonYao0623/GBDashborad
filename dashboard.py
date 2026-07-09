@@ -47,8 +47,8 @@ PAGE_TEXT = {
 }
 def render_dashboard(df):
     import matplotlib.pyplot as plt
-    plt.rcParams["font.sans-serif"] = ["WenQuanYi Zen Hei"]
-    plt.rcParams["axes.unicode_minus"] = False
+    import matplotlib.font_manager as fm
+    from config import configure_matplotlib_font
     configure_matplotlib_font()
     font_prop = fm.FontProperties()
     lang = st.session_state.get("lang", "zh")
