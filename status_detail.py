@@ -46,8 +46,10 @@ PAGE_TEXT = {
 
 def render_status_detail(df):
     import matplotlib.pyplot as plt
+    import matplotlib.font_manager as fm
     from config import configure_matplotlib_font
     configure_matplotlib_font()
+    font_prop = fm.FontProperties()
     
     lang = st.session_state["lang"]
     t = PAGE_TEXT[lang]
@@ -77,9 +79,9 @@ def render_status_detail(df):
     
     if sizes and sum(sizes) > 0:
         fig, ax = plt.subplots(figsize=(5,5))
-        ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
+        ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, textprops={"fontproperties": font_prop})
         ax.axis('equal')
-        plt.title(t["pie_chart_title"])
+        plt.title(t["pie_chart_title"], fontproperties=font_prop)
         st.pyplot(fig)
     else:
         st.info(t["order_count_tip"].format(0))
