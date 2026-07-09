@@ -420,6 +420,10 @@ def render_create_order(df):
 
         if st.session_state["auto_sync_enabled"]:
             st.success(f"✅ 自动同步已开启，每{st.session_state['auto_sync_interval']}分钟同步一次")
+            if _auto_sync_thread_started:
+                st.info("🔧 后台同步线程已启动，正在等待定时触发...")
+            else:
+                st.info("🔧 后台同步线程准备启动...")
         else:
             st.info("⏸️ 自动同步已关闭")
 
