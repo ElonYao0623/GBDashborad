@@ -1,174 +1,418 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-from datetime import datetime, date
-from config import get_workflow_step_text, get_standard_status, STATUS_WORKFLOW_MAP
+from datetime import datetime
+import json
+import os
+import traceback
+import schedule
+import threading
+import time
+from config import save_data, STATUS_WORKFLOW_MAP, get_workflow_step_text, load_data, fetch_feishu_table
 
+def get_feishu_config():
+    import os
+    cfg = {
+        "app_id": os.environ.get("FEISHU_APP_ID") or st.secrets.get("FEISHU_APP_ID", ""),
+        "app_secret": os.environ.get("FEISHU_APP_SECRET") or st.secrets.get("FEISHU_APP_SECRET", ""),
+        "spreadsheet_token": os.environ.get("FEISHU_SPREADSHEET_TOKEN") or st.secrets.get("FEISHU_SPREADSHEET_TOKEN", ""),
+        "sheet_name": os.environ.get("FEISHU_SHEET_NAME") or st.secrets.get("FEISHU_SHEET_NAME", "团房数据"),
+        "output_csv": "order_data.csv"
+    }
+    return cfg
+
+# 页面双语文本
 PAGE_TEXT = {
     "zh": {
-        "page_name": "数据统计看板",
-        "total_order": "有效团单总数",
-        "btn_view": "查看",
-        "tip_info": "点击数字下方查看跳转详情",
-        "pie_title": "订单状态占比",
-        "team_chart_title": "各销售团队订单分布",
-        "team_x_label": "销售团队",
-        "team_y_label": "订单数量",
-        "days_title": "距离入住天数分布",
-        "days_x_label": "距离入住天数",
-        "days_y_label": "订单数量",
-        "day_today": "今日0天",
-        "day_1_7": "1~7天",
-        "day_8_15": "8~15天",
-        "day_16_30": "16~30天",
-        "day_over30": "30天以上",
-        "day_expired": "已过期"
+        "page_title": "➕ 新增团单信息",
+        "tab_manual": "手动新建团单",
+        "tab_import": "Excel批量导入",
+        "tab_feishu": "飞书同步",
+        "form_order_id": "团单号（必填）",
+        "form_customer": "客户名称 Customer Name",
+        "form_userid": "User ID",
+        "form_nationality": "国籍 Nationality",
+        "form_room_total": "房间总数 Total Rooms",
+        "form_country": "国家 Country",
+        "form_contact": "联系方式 Contact Info",
+        "form_checkin": "入住日期 Check-in Date",
+        "form_checkout": "离店日期 Check-out Date",
+        "form_room_type": "房型要求 Room Type",
+        "form_currency": "报价币种 Currency",
+        "form_budget": "预算范围 Budget Range",
+        "form_room_cnt": "房间数 Rooms",
+        "form_star": "酒店星级 Star Rating",
+        "form_night": "间夜数 Room Nights",
+        "form_meeting": "会议室/交通需求 Meeting Room / Transportation Requirements",
+        "form_travel_purpose": "出行目的 Purpose of travel",
+        "form_special_req": "特殊需求 Special Requests",
+        "form_joy_price": "Joy 底价 Joy's Net Rate",
+        "form_sell_price": "建议卖价 Suggested Selling Price",
+        "form_extra_tax": "额外税费需求 Extra tax if needed",
+        "form_room_keep": "房间保留时间",
+        "form_pay_method": "支付方式",
+        "form_meal": "餐食",
+        "form_cancel_policy": "取消政策",
+        "form_fail_reason": "未成单原因",
+        "form_ops_note": "运营备注 Ops Notes",
+        "form_bd": "销售 BD",
+        "form_sale_team": "销售团队 Salesteam",
+        "form_hotel_name": "酒店名称 Hotel Name",
+        "form_sale_name": "销售姓名 Sales Name",
+        "form_status": "初始订单状态",
+        "btn_save": "保存新建团单",
+        "success_save": "团单【{}】创建完成！",
+        "err_order_empty": "团单号不能为空！",
+        "err_order_exist": "该团单号已存在，请勿重复创建！",
+        "import_tip": "上传CSV/Excel，相同团单号自动覆盖本地旧数据",
+        "upload_label": "上传文件",
+        "btn_import": "执行批量导入",
+        "import_success": "成功导入{}条订单",
+        "import_empty": "文件无有效数据",
+        "feishu_tip": "同步规则：以飞书为准，完全覆盖本地数据，飞书删除的订单本地也会删除",
+        "sync_btn": "开始同步飞书表格",
+        "clear_cache_btn": "清空本地缓存",
+        "last_sync_text": "上次同步时间：{}",
+        "sync_empty": "飞书表格无有效数据",
+        "sync_success": "同步完成！飞书读取{}条，更新{}条，本地独有{}条",
+        "sync_error": "同步失败：{}"
     },
     "en": {
-        "page_name": "Dashboard",
-        "total_order": "Total Valid Bookings",
-        "btn_view": "View",
-        "tip_info": "Click view to jump",
-        "pie_title": "Status Ratio",
-        "team_chart_title": "Sales Team Count",
-        "team_x_label": "Sales Team",
-        "team_y_label": "Count",
-        "days_title": "Days to Check-in Distribution",
-        "days_x_label": "Days to Check-in",
-        "days_y_label": "Count",
-        "day_today": "Today (0 days)",
-        "day_1_7": "1~7 days",
-        "day_8_15": "8~15 days",
-        "day_16_30": "16~30 days",
-        "day_over30": "Over 30 days",
-        "day_expired": "Expired"
+        "page_title": "Create New Booking",
+        "tab_manual": "Manual Create",
+        "tab_import": "Batch Import Excel",
+        "tab_feishu": "Feishu Sync",
+        "form_order_id": "Booking No. (Required)",
+        "form_customer": "Customer Name",
+        "form_userid": "User ID",
+        "form_nationality": "Nationality",
+        "form_room_total": "Total Rooms",
+        "form_country": "Country",
+        "form_contact": "Contact Info",
+        "form_checkin": "Check-in Date",
+        "form_checkout": "Check-out Date",
+        "form_room_type": "Room Type",
+        "form_currency": "Currency",
+        "form_budget": "Budget Range",
+        "form_room_cnt": "Room Count",
+        "form_star": "Hotel Star",
+        "form_night": "Room Nights",
+        "form_meeting": "Meeting Request",
+        "form_travel_purpose": "Travel Purpose",
+        "form_special_req": "Special Request",
+        "form_joy_price": "Joy's Net Rate",
+        "form_sell_price": "Suggested Price",
+        "form_extra_tax": "Extra Tax",
+        "form_room_keep": "Room Hold",
+        "form_pay_method": "Payment",
+        "form_meal": "Meal Plan",
+        "form_cancel_policy": "Cancellation Policy",
+        "form_fail_reason": "Failure Reason",
+        "form_ops_note": "Operation Notes",
+        "form_bd": "BD Sales",
+        "form_sale_team": "Sales Team",
+        "form_hotel_name": "Hotel Name",
+        "form_sale_name": "Sales Name",
+        "form_status": "Initial Status",
+        "btn_save": "Save Booking",
+        "success_save": "Booking {} created!",
+        "err_order_empty": "Booking No cannot empty!",
+        "err_order_exist": "Booking No already exists!",
+        "import_tip": "Upload CSV/Excel, same ID overwrite local data",
+        "upload_label": "Upload File",
+        "btn_import": "Start Import",
+        "import_success": "Imported {} bookings",
+        "import_empty": "No valid data",
+        "feishu_tip": "Sync: Feishu data overwrites all local data, deleted orders in Feishu will also be deleted locally",
+        "sync_btn": "Sync Feishu Sheet",
+        "clear_cache_btn": "Clear Cache",
+        "last_sync_text": "Last Sync: {}",
+        "sync_empty": "Feishu sheet empty",
+        "sync_success": "Sync done: Feishu {}, updated {}, local unique {}",
+        "sync_error": "Sync failed: {}"
     }
 }
-plt.rcParams["font.family"] = ["SimHei", "Microsoft YaHei", "Arial"]
-plt.rcParams["axes.unicode_minus"] = False
 
-def render_dashboard(df):
-    lang = st.session_state.get("lang", "zh")
+def render_create_order(df):
+    lang = st.session_state["lang"]
     t = PAGE_TEXT[lang]
-    view_label = f"🔍 {t['btn_view']}"
-    st.header(f"📊 {t['page_name']}")
-    st.divider()
-    active_df = df.copy()
-    # 预处理状态消除NaN报错 - 兼容"状态"和"状态 Status"两种列名
-    status_col = "状态" if "状态" in active_df.columns else "状态 Status" if "状态 Status" in active_df.columns else None
-    if status_col is None:
-        active_df["状态"] = ""
-    else:
-        active_df["状态"] = active_df[status_col].fillna("").astype(str).str.strip()
-    active_df["标准状态"] = active_df["状态"].apply(get_standard_status)
-    total = len(active_df)
-    st.metric(t["total_order"], total)
-    st.divider()
-    hide_list = ["inquiry_failed","customer_confirm_failed","group_booking_failed","awaiting_hotel_lock","considering_alternative","inquiry_succeeded","customer_inquiry","customer_confirmed_group","awaiting_ops_review"]
+    st.header(t["page_title"])
+    tab3, tab1, tab2 = st.tabs([t["tab_feishu"], t["tab_manual"], t["tab_import"]])
     all_status = list(STATUS_WORKFLOW_MAP.keys())
-    show_status = [s for s in all_status if s not in hide_list]
-    stat = {}
-    for s in show_status:
-        stat[s] = len(active_df[active_df["标准状态"] == s])
-    stat_list = list(stat.items())
-    for i in range(0, len(stat_list),4):
-        chunk = stat_list[i:i+4]
-        cols = st.columns(4)
-        for idx,(name,cnt) in enumerate(chunk):
-            with cols[idx]:
-                st.metric(get_workflow_step_text(lang, name), cnt)
-                if st.button(view_label, key=f"dash_{name}", use_container_width=True):
-                    st.session_state["jump_status"] = name
-                    st.rerun()
-    st.divider()
-    st.info(t["tip_info"])
-    st.divider()
-    _,mid,_ = st.columns([1,2,1])
-    with mid:
-        all_status_values = active_df["状态"].astype(str).str.strip().unique().tolist()
-        all_status_values = [v for v in all_status_values if v and v != "nan"]
-        
-        status_display_map = {}
-        for val in all_status_values:
-            std_status = get_standard_status(val)
-            display_text = get_workflow_step_text(lang, std_status)
-            if display_text not in status_display_map:
-                status_display_map[display_text] = []
-            status_display_map[display_text].append(val)
-        
-        status_counts = {}
-        for display_text, orig_values in status_display_map.items():
-            mask = active_df["状态"].astype(str).str.strip().isin(orig_values)
-            status_counts[display_text] = len(active_df[mask])
-        
-        labels = list(status_counts.keys())
-        values = list(status_counts.values())
-        
-        fig,ax = plt.subplots(figsize=(4.2,4.2))
-        ax.pie(values, labels=labels, autopct="%1.1f%%")
-        ax.set_title(t["pie_title"])
-        ax.axis("equal")
-        st.pyplot(fig)
-    st.divider()
-    st.subheader(t["days_title"])
-    def calc_day(s):
-        try:
-            x = str(s).strip()
-            if not x:
-                return None
-            if "/" in x:
-                d = datetime.strptime(x, "%Y/%m/%d").date()
-            else:
-                d = datetime.strptime(x, "%Y-%m-%d").date()
-            return (d - date.today()).days
-        except:
-            return None
-    if "入住日期 Check-in Date" not in active_df.columns:
-        active_df["入住日期 Check-in Date"] = ""
-    active_df["距离入住天数"] = active_df["入住日期 Check-in Date"].apply(calc_day)
-    
-    def get_day_group(days):
-        if days is None:
-            return None
-        if days < 0:
-            return t["day_expired"]
-        elif days == 0:
-            return t["day_today"]
-        elif 1 <= days <= 7:
-            return t["day_1_7"]
-        elif 8 <= days <= 15:
-            return t["day_8_15"]
-        elif 16 <= days <= 30:
-            return t["day_16_30"]
+
+    # Tab1 手动新建
+    with tab1:
+        with st.form("new_order_form", border=True):
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                order_id = st.text_input(t["form_order_id"])
+                customer = st.text_input(t["form_customer"])
+                user_id = st.text_input(t["form_userid"])
+                nationality = st.text_input(t["form_nationality"])
+                hotel_name = st.text_input(t["form_hotel_name"])
+            with c2:
+                create_time = st.text_input("提交时间 Submitted by", value=datetime.now().strftime("%Y-%m-%d"), disabled=True)
+                last_update_time = st.text_input("最后更新时间", value=datetime.now().strftime("%Y-%m-%d"), disabled=True)
+                room_total = st.number_input(t["form_room_total"], min_value=1, value=1)
+                country = st.text_input(t["form_country"])
+                contact = st.text_input(t["form_contact"])
+                checkin = st.text_input(t["form_checkin"])
+            with c3:
+                checkout = st.text_input(t["form_checkout"])
+                room_type = st.text_input(t["form_room_type"])
+                currency = st.text_input(t["form_currency"])
+                budget = st.text_input(t["form_budget"])
+                room_cnt = st.text_input(t["form_room_cnt"])
+            c4, c5, c6 = st.columns(3)
+            with c4:
+                star = st.text_input(t["form_star"])
+                night = st.text_input(t["form_night"])
+                meeting = st.text_input(t["form_meeting"])
+                travel_purpose = st.text_input(t["form_travel_purpose"])
+                special_req = st.text_input(t["form_special_req"])
+            with c5:
+                joy_price = st.text_input(t["form_joy_price"])
+                sell_price = st.text_input(t["form_sell_price"])
+                extra_tax = st.text_input(t["form_extra_tax"])
+                room_keep = st.text_input(t["form_room_keep"])
+                pay_method = st.text_input(t["form_pay_method"])
+            with c6:
+                meal = st.text_input(t["form_meal"])
+                cancel_policy = st.text_input(t["form_cancel_policy"])
+                fail_reason = st.text_input(t["form_fail_reason"])
+                ops_note = st.text_input(t["form_ops_note"])
+            c7, c8 = st.columns(2)
+            with c7:
+                bd = st.text_input(t["form_bd"])
+                sale_team = st.text_input(t["form_sale_team"])
+            with c8:
+                sale_name = st.text_input(t["form_sale_name"])
+                init_status = st.selectbox(t["form_status"], all_status, format_func=lambda s:get_workflow_step_text(lang,s))
+            submit = st.form_submit_button(t["btn_save"])
+            if submit:
+                oid = order_id.strip()
+                if not oid:
+                    st.error(t["err_order_empty"])
+                    return
+                local_check = df["团单号"].astype(str).str.strip().tolist()
+                if oid in local_check:
+                    st.error(t["err_order_exist"])
+                    return
+                new_row = {
+                    "团单号": oid,
+                    "客户名称 Customer Name": customer.strip(),
+                    "User ID": user_id.strip(),
+                    "国籍 Nationality": nationality.strip(),
+                    "房间总数 Total Rooms": str(room_total),
+                    "状态": init_status,
+                    "提交时间 Submitted by": create_time.strip(),
+                    "最后更新时间": last_update_time.strip(),
+                    "国家 Country": country.strip(),
+                    "联系方式 Contact Info": contact.strip(),
+                    "入住日期 Check-in Date": checkin.strip(),
+                    "离店日期 Check-out Date": checkout.strip(),
+                    "房型要求 Room Type": room_type.strip(),
+                    "报价币种 Currency": currency.strip(),
+                    "预算范围 Budget Range": budget.strip(),
+                    "房间数 Rooms": room_cnt.strip(),
+                    "酒店星级 Star Rating": star.strip(),
+                    "间夜数 Room Nights": night.strip(),
+                    "会议室/交通需求 Meeting Room / Transportation Requirements": meeting.strip(),
+                    "出行目的 Purpose of travel": travel_purpose.strip(),
+                    "特殊需求 Special Requests": special_req.strip(),
+                    "Joy 底价 Joy's Net Rate": joy_price.strip(),
+                    "建议卖价 Suggested Selling Price": sell_price.strip(),
+                    "额外税费需求 Extra tax if needed": extra_tax.strip(),
+                    "房间保留时间": room_keep.strip(),
+                    "支付方式": pay_method.strip(),
+                    "餐食": meal.strip(),
+                    "取消政策": cancel_policy.strip(),
+                    "未成单原因": fail_reason.strip(),
+                    "运营备注 Ops Notes": ops_note.strip(),
+                    "BD": bd.strip(),
+                    "Salesteam": sale_team.strip(),
+                    "酒店名称 Hotel Name": hotel_name.strip(),
+                    "销售姓名 Sales Name": sale_name.strip(),
+                    "备注": ""
+                }
+                new_df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+                save_data(new_df)
+                st.success(t["success_save"].format(oid))
+                st.rerun()
+
+    # Tab2 Excel批量导入
+    with tab2:
+        st.info(t["import_tip"])
+        upload_file = st.file_uploader(t["upload_label"], type=["csv", "xlsx"])
+        import_btn = st.button(t["btn_import"])
+        if upload_file and import_btn:
+            try:
+                if upload_file.name.endswith(".csv"):
+                    import_df = pd.read_csv(upload_file, encoding="utf-8-sig")
+                else:
+                    import_df = pd.read_excel(upload_file)
+                # 清洗导入文件
+                import_df.columns = import_df.columns.str.strip()
+                import_df = import_df.astype(str).replace(["nan","","None"], "")
+                for col in import_df.columns:
+                    import_df[col] = import_df[col].str.strip().str.replace(r"[\n\r]", "", regex=True)
+
+                map_rule = {
+                    "团单号": "团单号",
+                    "客户名称 Customer Name": "客户名称 Customer Name",
+                    "User ID": "User ID",
+                    "国籍 Nationality": "国籍 Nationality",
+                    "国家 Country": "国家 Country",
+                    "联系方式 Contact Info": "联系方式 Contact Info",
+                    "入住日期 Check-in Date": "入住日期 Check-in Date",
+                    "离店日期 Check-out Date": "离店日期 Check-out Date",
+                    "房型要求 Room Type": "房型要求 Room Type",
+                    "报价币种 Currency": "报价币种 Currency",
+                    "提交时间 Submitted by": "提交时间 Submitted by",
+                    "提交时间 Submitted At": "提交时间 Submitted by",
+                    "Joy 底价 Joy's Net Rate": "Joy 底价 Joy's Net Rate",
+                    "建议卖价 Suggested Selling Price": "建议卖价 Suggested Selling Price",
+                    "额外税费需求 Extra tax if needed": "额外税费需求 Extra tax if needed",
+                    "房间保留时间": "房间保留时间",
+                    "支付方式": "支付方式",
+                    "餐食": "餐食",
+                    "取消政策": "取消政策",
+                    "未成单原因": "未成单原因",
+                    "出行目的 Purpose of travel": "出行目的 Purpose of travel",
+                    "特殊需求 Special Requests": "特殊需求 Special Requests",
+                    "运营备注 Ops Notes": "运营备注 Ops Notes",
+                    "运营备注 Ops Notes.1": "运营备注 Ops Notes",
+                    "状态 Status": "状态",
+                    "销售姓名 Sales Name": "销售姓名 Sales Name",
+                    "酒店名称 Hotel Name": "酒店名称 Hotel Name",
+                    "房间数 Rooms": "房间数 Rooms",
+                    "酒店星级 Star Rating": "酒店星级 Star Rating",
+                    "间夜数 Room Nights": "间夜数 Room Nights",
+                    "会议室/交通需求 Meeting Room / Transportation Requirements": "会议室/交通需求 Meeting Room / Transportation Requirements"
+                }
+                std_cols = [
+                    "团单号", "客户名称 Customer Name", "User ID", "国籍 Nationality",
+                    "房间总数 Total Rooms", "状态", "提交时间 Submitted by", "最后更新时间", "国家 Country",
+                    "联系方式 Contact Info", "入住日期 Check-in Date", "离店日期 Check-out Date",
+                    "房型要求 Room Type", "报价币种 Currency", "预算范围 Budget Range",
+                    "房间数 Rooms", "酒店星级 Star Rating", "间夜数 Room Nights",
+                    "会议室/交通需求 Meeting Room / Transportation Requirements",
+                    "出行目的 Purpose of travel", "特殊需求 Special Requests",
+                    "Joy 底价 Joy's Net Rate", "建议卖价 Suggested Selling Price",
+                    "额外税费需求 Extra tax if needed", "房间保留时间", "支付方式",
+                    "餐食", "取消政策", "未成单原因", "运营备注 Ops Notes", "BD", "Salesteam", "酒店名称 Hotel Name",
+                    "销售姓名 Sales Name", "备注"
+                ]
+                mapped_df = pd.DataFrame(columns=std_cols)
+                for src_col, target_col in map_rule.items():
+                    if src_col in import_df.columns:
+                        if target_col in mapped_df.columns:
+                            if mapped_df[target_col].isna().all() or mapped_df[target_col].eq("").all():
+                                mapped_df[target_col] = import_df[src_col]
+                            else:
+                                mapped_df[target_col] = mapped_df[target_col] + " " + import_df[src_col]
+                if "团单号" in mapped_df.columns:
+                    mapped_df["团单号"] = mapped_df["团单号"].astype(str).str.strip()
+                    mapped_df = mapped_df[mapped_df["团单号"] != ""]
+                    mapped_df = mapped_df.drop_duplicates(subset=["团单号"], keep="last")
+                if mapped_df.empty:
+                    st.warning(t["import_empty"])
+                    return
+                local_df = load_data()
+                local_df["团单号"] = local_df["团单号"].astype(str).str.strip()
+                cover_ids = mapped_df["团单号"].unique()
+                local_keep = local_df[~local_df["团单号"].isin(cover_ids)].copy()
+                full_df = pd.concat([local_keep, mapped_df], ignore_index=True)
+                save_data(full_df)
+                st.success(t["import_success"].format(len(mapped_df)))
+                st.rerun()
+            except Exception as e:
+                st.error(f"导入失败：{str(e)}")
+                traceback.print_exc()
+
+    # Tab3 飞书同步
+    with tab3:
+        if "feishu_sync_running" not in st.session_state:
+            st.session_state["feishu_sync_running"] = False
+        if "last_sync_time" not in st.session_state:
+            st.session_state["last_sync_time"] = None
+        if "auto_sync_enabled" not in st.session_state:
+            st.session_state["auto_sync_enabled"] = True
+        if "auto_sync_interval" not in st.session_state:
+            st.session_state["auto_sync_interval"] = 60
+
+        st.info(t["feishu_tip"])
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col1:
+            sync_btn = st.button(t["sync_btn"], type="primary", disabled=st.session_state["feishu_sync_running"])
+        with col2:
+            auto_sync_enabled = st.checkbox("🔄 自动定时同步", value=st.session_state["auto_sync_enabled"])
+        with col3:
+            auto_sync_interval = st.number_input("间隔(分钟)", min_value=1, max_value=1440, value=st.session_state["auto_sync_interval"])
+
+        if auto_sync_enabled != st.session_state["auto_sync_enabled"] or auto_sync_interval != st.session_state["auto_sync_interval"]:
+            st.session_state["auto_sync_enabled"] = auto_sync_enabled
+            st.session_state["auto_sync_interval"] = auto_sync_interval
+            st.rerun()
+
+        if st.session_state["auto_sync_enabled"]:
+            st.success(f"✅ 自动同步已开启，每{st.session_state['auto_sync_interval']}分钟同步一次")
         else:
-            return t["day_over30"]
-    
-    active_df["入住天数分组"] = active_df["距离入住天数"].apply(get_day_group)
-    grouped_df = active_df[active_df["入住天数分组"].notna()]
-    group_order = [t["day_expired"], t["day_today"], t["day_1_7"], t["day_8_15"], t["day_16_30"], t["day_over30"]]
-    group_cnt = grouped_df["入住天数分组"].value_counts().reindex(group_order, fill_value=0)
-    
-    fig3,ax3 = plt.subplots(figsize=(11,4.5))
-    bars = ax3.bar(group_cnt.index, group_cnt.values, color="#10b981")
-    ax3.set_xlabel(t["days_x_label"])
-    ax3.set_ylabel(t["days_y_label"])
-    for bar in bars:
-        h = bar.get_height()
-        ax3.text(bar.get_x()+bar.get_width()/2, h, str(h), ha="center", va="bottom")
-    st.pyplot(fig3)
-    st.divider()
-    st.subheader(t["team_chart_title"])
-    team_df = active_df.copy()
-    if "Salesteam" not in team_df.columns:
-        team_df["Salesteam"] = ""
-    team_df["team_temp"] = team_df["Salesteam"].fillna("无销售团队").astype(str).str.strip()
-    team_cnt = team_df["team_temp"].value_counts()
-    fig2,ax2 = plt.subplots(figsize=(11,4.5))
-    bars = ax2.bar(team_cnt.index, team_cnt.values, color="#3b82f6")
-    ax2.set_xlabel(t["team_x_label"])
-    ax2.set_ylabel(t["team_y_label"])
-    ax2.tick_params(axis="x", rotation=45)
-    for bar in bars:
-        h = bar.get_height()
-        ax2.text(bar.get_x()+bar.get_width()/2, h, str(h), ha="center", va="bottom")
-    st.pyplot(fig2)
+            st.info("⏸️ 自动同步已关闭")
+
+        if st.session_state["last_sync_time"]:
+            st.success(t["last_sync_text"].format(st.session_state["last_sync_time"]))
+
+        def sync_data():
+            try:
+                sync_df = fetch_feishu_table()
+                if sync_df.empty:
+                    print("[自动同步] 飞书表格无有效数据")
+                    return None
+                
+                col_mapping = {
+                    "提交时间 Submitted At": "提交时间 Submitted by",
+                    "状态 Status": "状态"
+                }
+                sync_df = sync_df.rename(columns=col_mapping)
+                
+                sync_df["团单号"] = sync_df["团单号"].astype(str).str.strip()
+                
+                save_data(sync_df)
+                st.session_state["last_sync_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                print(f"[自动同步] 完成: 飞书读取{len(sync_df)}条, 完全覆盖本地数据")
+                return len(sync_df), 0, 0
+            except Exception as err:
+                print(f"[自动同步] 失败: {str(err)}")
+                raise err
+
+        def run_sync():
+            st.session_state["feishu_sync_running"] = True
+            with st.status("同步中") as status_box:
+                try:
+                    sync_result = sync_data()
+                    if sync_result:
+                        sync_cnt, update_cnt, local_only = sync_result
+                        status_box.update(label="同步完成")
+                        st.success(t["sync_success"].format(sync_cnt, update_cnt, local_only))
+                    else:
+                        status_box.update(label="同步完成")
+                        st.warning(t["sync_empty"])
+                except Exception as err:
+                    st.error(t["sync_error"].format(str(err)))
+                finally:
+                    st.session_state["feishu_sync_running"] = False
+
+        if sync_btn:
+            run_sync()
+
+        def schedule_runner():
+            while st.session_state.get("auto_sync_enabled", False):
+                schedule.run_pending()
+                time.sleep(1)
+
+        if st.session_state["auto_sync_enabled"]:
+            schedule.clear()
+            schedule.every(st.session_state["auto_sync_interval"]).minutes.do(sync_data)
+            if "schedule_thread" not in st.session_state or not st.session_state["schedule_thread"].is_alive():
+                st.session_state["schedule_thread"] = threading.Thread(target=schedule_runner, daemon=True)
+                st.session_state["schedule_thread"].start()
