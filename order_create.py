@@ -357,7 +357,7 @@ def render_create_order(df):
             st.rerun()
 
         if st.session_state["auto_sync_enabled"]:
-            st.success(f"✅ 自动同步已开启，每{st.session_state['auto_sync_interval']}分钟同步一次")
+            st.success(f"✅ 自动同步已开启，每{st.session_state['auto_sync_interval']}分钟同步一次",disabled=True)
         else:
             st.info("⏸️ 自动同步已关闭")
 
