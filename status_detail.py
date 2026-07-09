@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
 from datetime import datetime
 from config import get_workflow_step_text
 
@@ -46,11 +45,13 @@ PAGE_TEXT = {
     }
 }
 
-# 兼容中英文字体
-plt.rcParams["font.family"] = ["SimHei", "WenQuanYi Micro Hei", "Heiti TC", "Arial"]
-plt.rcParams["axes.unicode_minus"] = False
-
 def render_status_detail(df):
+    import matplotlib.pyplot as plt
+    try:
+        plt.rcParams["font.family"] = ["SimHei", "WenQuanYi Micro Hei", "Heiti TC", "Arial"]
+    except:
+        plt.rcParams["font.family"] = ["Arial"]
+    plt.rcParams["axes.unicode_minus"] = False
     lang = st.session_state["lang"]
     t = PAGE_TEXT[lang]
     target_status_raw = st.session_state["jump_status"]
