@@ -226,21 +226,37 @@ def configure_matplotlib_font():
             plt.rcParams["font.family"] = font_prop.get_name()
             plt.rcParams["font.sans-serif"] = [font_prop.get_name()]
             plt.rcParams["axes.unicode_minus"] = False
+            print(f"[字体配置] 使用本地下载字体: {font_prop.get_name()}")
             return
-        except:
-            pass
+        except Exception as e:
+            print(f"[字体配置] 本地字体加载失败: {e}")
     
     available_fonts = [f.name for f in fm.fontManager.ttflist]
-    chinese_fonts = ["SimHei", "Microsoft YaHei", "Arial Unicode MS", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK JP", "WenQuanYi Micro Hei", "Heiti SC", "Heiti TC", "DejaVu Sans"]
+    available_fonts_lower = [f.lower() for f in available_fonts]
+    
+    chinese_fonts = [
+        "SimHei", "Microsoft YaHei", "Microsoft YaHei UI",
+        "Noto Sans SC", "Noto Sans CJK SC", "Noto Sans CJK",
+        "Arial Unicode MS", "WenQuanYi Micro Hei",
+        "Heiti SC", "Heiti TC", "STSong", "STHeiti",
+        "DejaVu Sans"
+    ]
+    
     selected_font = None
     for font in chinese_fonts:
-        if font in available_fonts:
-            selected_font = font
+        if font.lower() in available_fonts_lower:
+            idx = available_fonts_lower.index(font.lower())
+            selected_font = available_fonts[idx]
             break
+    
     if selected_font:
         plt.rcParams["font.family"] = selected_font
         plt.rcParams["font.sans-serif"] = [selected_font]
+        plt.rcParams["axes.unicode_minus"] = False
+        print(f"[字体配置] 使用系统字体: {selected_font}")
     else:
         plt.rcParams["font.family"] = ["DejaVu Sans"]
         plt.rcParams["font.sans-serif"] = ["DejaVu Sans"]
-    plt.rcParams["axes.unicode_minus"] = False
+        plt.rcParams["axes.unicode_minus"] = False
+        print(f"[字体配置] 未找到中文字体，使用默认: DejaVu Sans")
+        print(f"[字体配置] 可用字体列表: {available_fonts[:20]}")
