@@ -338,7 +338,7 @@ def render_create_order(df):
         if "auto_sync_enabled" not in st.session_state:
             st.session_state["auto_sync_enabled"] = True
         if "auto_sync_interval" not in st.session_state:
-            st.session_state["auto_sync_interval"] = 60
+            st.session_state["auto_sync_interval"] = 10
         if "auto_sync_alert" not in st.session_state:
             st.session_state["auto_sync_alert"] = None
 
