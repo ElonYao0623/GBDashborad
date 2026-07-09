@@ -4,3 +4,4 @@ matplotlib>=3.7.0
 schedule>=1.2.0
 openpyxl>=3.0.0
 requests>=2.25.0
+noto-fonts-cjk>=2024.01.02
