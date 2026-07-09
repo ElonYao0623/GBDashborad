@@ -198,3 +198,49 @@ def _parse_feishu_cell(value):
                 text_parts.append(str(item))
         return "".join(text_parts)
     return str(value)
+
+def configure_matplotlib_font():
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import matplotlib.font_manager as fm
+    import os
+    
+    font_dir = os.path.join(os.path.dirname(__file__), "fonts")
+    os.makedirs(font_dir, exist_ok=True)
+    
+    font_path = os.path.join(font_dir, "NotoSansCJK-SC.otf")
+    
+    if not os.path.exists(font_path):
+        try:
+            import urllib.request
+            url = "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJK-SC-Regular.otf"
+            urllib.request.urlretrieve(url, font_path)
+        except:
+            pass
+    
+    if os.path.exists(font_path):
+        try:
+            font_prop = fm.FontProperties(fname=font_path)
+            fm.fontManager.addfont(font_path)
+            plt.rcParams["font.family"] = font_prop.get_name()
+            plt.rcParams["font.sans-serif"] = [font_prop.get_name()]
+            plt.rcParams["axes.unicode_minus"] = False
+            return
+        except:
+            pass
+    
+    available_fonts = [f.name for f in fm.fontManager.ttflist]
+    chinese_fonts = ["SimHei", "Microsoft YaHei", "Arial Unicode MS", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK JP", "WenQuanYi Micro Hei", "Heiti SC", "Heiti TC", "DejaVu Sans"]
+    selected_font = None
+    for font in chinese_fonts:
+        if font in available_fonts:
+            selected_font = font
+            break
+    if selected_font:
+        plt.rcParams["font.family"] = selected_font
+        plt.rcParams["font.sans-serif"] = [selected_font]
+    else:
+        plt.rcParams["font.family"] = ["DejaVu Sans"]
+        plt.rcParams["font.sans-serif"] = ["DejaVu Sans"]
+    plt.rcParams["axes.unicode_minus"] = False
