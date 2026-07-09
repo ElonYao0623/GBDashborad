@@ -131,15 +131,21 @@ def load_feishu_config():
 def fetch_feishu_table():
     config = load_feishu_config()
     
-    app_id = os.environ.get("FEISHU_APP_ID") or config.get("app_id", "")
-    app_secret = os.environ.get("FEISHU_APP_SECRET") or config.get("app_secret", "")
-    spreadsheet_token = os.environ.get("FEISHU_SPREADSHEET_TOKEN") or config.get("spreadsheet_token", "")
-    sheet_id = os.environ.get("FEISHU_SHEET_ID") or config.get("sheet_id", "")
+    try:
+        import streamlit as st
+        st_secrets = st.secrets
+    except:
+        st_secrets = {}
+    
+    app_id = os.environ.get("FEISHU_APP_ID") or st_secrets.get("FEISHU_APP_ID", "") or config.get("app_id", "")
+    app_secret = os.environ.get("FEISHU_APP_SECRET") or st_secrets.get("FEISHU_APP_SECRET", "") or config.get("app_secret", "")
+    spreadsheet_token = os.environ.get("FEISHU_SPREADSHEET_TOKEN") or st_secrets.get("FEISHU_SPREADSHEET_TOKEN", "") or config.get("spreadsheet_token", "")
+    sheet_id = os.environ.get("FEISHU_SHEET_ID") or st_secrets.get("FEISHU_SHEET_ID", "") or config.get("sheet_id", "")
 
     if not app_id or not app_secret:
-        raise Exception("未配置飞书app_id或app_secret！请在环境变量或feishu_config.json中配置")
+        raise Exception("未配置飞书app_id或app_secret！请在Streamlit Secrets或feishu_config.json中配置")
     if not sheet_id:
-        raise Exception("未配置sheet_id！请在环境变量或feishu_config.json中添加sheet_id字段")
+        raise Exception("未配置sheet_id！请在Streamlit Secrets或feishu_config.json中添加sheet_id字段")
 
     try:
         token = get_tenant_token(app_id, app_secret)
