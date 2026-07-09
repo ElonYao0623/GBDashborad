@@ -4,10 +4,72 @@ from datetime import datetime
 import json
 import os
 import traceback
-import schedule
 import threading
 import time
 from config import save_data, STATUS_WORKFLOW_MAP, get_workflow_step_text, load_data, fetch_feishu_table
+
+def auto_sync_worker():
+    import pytz
+    beijing_tz = pytz.timezone('Asia/Shanghai')
+    while True:
+        try:
+            enabled = st.session_state.get("auto_sync_enabled", False)
+            interval = st.session_state.get("auto_sync_interval", 10)
+            
+            if not enabled:
+                time.sleep(5)
+                continue
+                
+            print(f"[定时同步] 等待中，下次同步将在{interval}分钟后")
+            
+            for _ in range(interval * 60):
+                if not st.session_state.get("auto_sync_enabled", False):
+                    print(f"[定时同步] 自动同步已关闭")
+                    break
+                time.sleep(1)
+            
+            if not st.session_state.get("auto_sync_enabled", False):
+                continue
+                
+            print(f"[定时同步] 开始执行自动同步...")
+            try:
+                sync_df = fetch_feishu_table()
+                if sync_df.empty:
+                    print("[定时同步] 飞书表格无有效数据")
+                    st.session_state["auto_sync_alert"] = ("warning", "飞书表格无有效数据")
+                    continue
+                
+                col_mapping = {
+                    "提交时间 Submitted At": "提交时间 Submitted by",
+                    "状态 Status": "状态"
+                }
+                sync_df = sync_df.rename(columns=col_mapping)
+                sync_df["团单号"] = sync_df["团单号"].astype(str).str.strip()
+                
+                save_data(sync_df)
+                beijing_time = datetime.now(beijing_tz)
+                sync_time_str = beijing_time.strftime("%Y-%m-%d %H:%M:%S")
+                st.session_state["last_sync_time"] = sync_time_str
+                st.session_state["auto_sync_alert"] = ("success", f"🔄 自动同步完成！读取{len(sync_df)}条数据，同步时间: {sync_time_str}")
+                print(f"[定时同步] 完成: 飞书读取{len(sync_df)}条, 完全覆盖本地数据, 时间: {sync_time_str}")
+                
+            except Exception as err:
+                print(f"[定时同步] 失败: {str(err)}")
+                st.session_state["auto_sync_alert"] = ("error", f"自动同步失败: {str(err)}")
+                
+        except Exception as e:
+            print(f"[定时同步] 线程异常: {str(e)}")
+            time.sleep(60)
+
+_auto_sync_thread_started = False
+
+def start_auto_sync_thread():
+    global _auto_sync_thread_started
+    if not _auto_sync_thread_started:
+        thread = threading.Thread(target=auto_sync_worker, daemon=True)
+        thread.start()
+        _auto_sync_thread_started = True
+        print("[定时同步] 自动同步后台线程已启动")
 
 def get_feishu_config():
     import os
@@ -427,29 +489,4 @@ def render_create_order(df):
         if sync_btn:
             run_sync()
 
-        def schedule_runner():
-            while st.session_state.get("auto_sync_enabled", False):
-                schedule.run_pending()
-                time.sleep(1)
-
-        if st.session_state["auto_sync_enabled"]:
-            current_interval = st.session_state["auto_sync_interval"]
-            needs_reschedule = False
-            
-            if "last_scheduled_interval" not in st.session_state or st.session_state["last_scheduled_interval"] != current_interval:
-                needs_reschedule = True
-            
-            if needs_reschedule:
-                schedule.clear()
-                schedule.every(current_interval).minutes.do(sync_data, is_auto=True)
-                st.session_state["last_scheduled_interval"] = current_interval
-                print(f"[定时同步] 已设置自动同步，间隔{current_interval}分钟")
-            
-            if "schedule_thread" not in st.session_state or not st.session_state["schedule_thread"].is_alive():
-                st.session_state["schedule_thread"] = threading.Thread(target=schedule_runner, daemon=True)
-                st.session_state["schedule_thread"].start()
-                print(f"[定时同步] 调度线程已启动")
-        else:
-            if "schedule_thread" in st.session_state and st.session_state["schedule_thread"].is_alive():
-                st.session_state["auto_sync_enabled"] = False
-                print(f"[定时同步] 自动同步已关闭")
+        start_auto_sync_thread()
