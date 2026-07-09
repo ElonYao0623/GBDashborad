@@ -378,7 +378,10 @@ def render_create_order(df):
                 sync_df["团单号"] = sync_df["团单号"].astype(str).str.strip()
                 
                 save_data(sync_df)
-                st.session_state["last_sync_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                import pytz
+                beijing_tz = pytz.timezone('Asia/Shanghai')
+                beijing_time = datetime.now(beijing_tz)
+                st.session_state["last_sync_time"] = beijing_time.strftime("%Y-%m-%d %H:%M:%S")
                 print(f"[自动同步] 完成: 飞书读取{len(sync_df)}条, 完全覆盖本地数据")
                 return len(sync_df), 0, 0
             except Exception as err:
