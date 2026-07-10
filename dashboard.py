@@ -67,25 +67,7 @@ def render_dashboard(df):
     total = len(active_df)
     st.metric(t["total_order"], total)
     st.divider()
-    hide_list = ["inquiry_failed","customer_confirm_failed","group_booking_failed","awaiting_hotel_lock","considering_alternative","inquiry_succeeded","customer_inquiry","customer_confirmed_group","awaiting_ops_review"]
-    all_status = list(STATUS_WORKFLOW_MAP.keys())
-    show_status = [s for s in all_status if s not in hide_list]
-    stat = {}
-    for s in show_status:
-        stat[s] = len(active_df[active_df["标准状态"] == s])
-    stat_list = list(stat.items())
-    for i in range(0, len(stat_list),4):
-        chunk = stat_list[i:i+4]
-        cols = st.columns(4)
-        for idx,(name,cnt) in enumerate(chunk):
-            with cols[idx]:
-                st.metric(get_workflow_step_text(lang, name), cnt)
-                if st.button(view_label, key=f"dash_{name}", use_container_width=True):
-                    st.session_state["jump_status"] = name
-                    st.rerun()
-    st.divider()
-    st.info(t["tip_info"])
-    st.divider()
+    
     _,mid,_ = st.columns([1,2,1])
     with mid:
         all_status_values = active_df["状态"].astype(str).str.strip().unique().tolist()
@@ -115,6 +97,24 @@ def render_dashboard(df):
             ax.set_title(t["pie_title"], fontproperties=font_prop)
             ax.axis("equal")
             st.pyplot(fig)
+    st.divider()
+    
+    hide_list = ["inquiry_failed","customer_confirm_failed","group_booking_failed","awaiting_hotel_lock","considering_alternative","inquiry_succeeded","customer_inquiry","customer_confirmed_group","awaiting_ops_review"]
+    all_status = list(STATUS_WORKFLOW_MAP.keys())
+    show_status = [s for s in all_status if s not in hide_list]
+    stat = {}
+    for s in show_status:
+        stat[s] = len(active_df[active_df["标准状态"] == s])
+    stat_list = list(stat.items())
+    for i in range(0, len(stat_list),4):
+        chunk = stat_list[i:i+4]
+        cols = st.columns(4)
+        for idx,(name,cnt) in enumerate(chunk):
+            with cols[idx]:
+                st.metric(get_workflow_step_text(lang, name), cnt)
+                if st.button(view_label, key=f"dash_{name}", use_container_width=True):
+                    st.session_state["jump_status"] = name
+                    st.rerun()
     st.divider()
     st.subheader(t["days_title"])
     def calc_day(s):
