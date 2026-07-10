@@ -1,12 +1,32 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import json
 import os
 import traceback
 import threading
 import time
 from config import save_data, STATUS_WORKFLOW_MAP, get_workflow_step_text, load_data, fetch_feishu_table
+
+# 模块级变量：后台线程通过这些变量与主线程通信（不能用 st.session_state，因为它是 thread-local 的）
+_sync_config = {"enabled": True, "interval": 60}
+_sync_status = {"status": "未启动", "alert": None, "last_sync_time": None}
+_auto_sync_thread = None
+_auto_sync_thread_lock = threading.Lock()
+
+# 哨兵值，用于区分"未传参"和"传了None"
+_UNSET = object()
+
+def save_sync_status(status, alert=_UNSET, last_sync_time=_UNSET):
+    """更新同步状态（内存）。仅更新传入的字段，未传入的字段保持原值。"""
+    _sync_status["status"] = status
+    if alert is not _UNSET:
+        _sync_status["alert"] = alert
+    if last_sync_time is not _UNSET:
+        _sync_status["last_sync_time"] = last_sync_time
+
+def load_sync_status():
+    """读取同步状态（内存）"""
+    return dict(_sync_status)
 
 def auto_sync_worker():
     import pytz
@@ -14,67 +34,70 @@ def auto_sync_worker():
     print("[定时同步] 后台线程已启动，开始监听同步配置...")
     while True:
         try:
-            enabled = st.session_state.get("auto_sync_enabled", False)
-            interval = st.session_state.get("auto_sync_interval", 10)
-            
+            enabled = _sync_config.get("enabled", False)
+            interval = _sync_config.get("interval", 1)
+
             if not enabled:
+                save_sync_status("⏸️ 自动同步已关闭")
                 time.sleep(5)
                 continue
-                
+
             print(f"[定时同步] 已启用，间隔{interval}分钟，等待下次同步...")
-            st.session_state["auto_sync_status"] = f"⏳ 等待中，下次同步将在{interval}分钟后"
-            
+            save_sync_status(f"⏳ 等待中，下次同步将在{interval}分钟后")
+
             for i in range(interval * 60):
-                if not st.session_state.get("auto_sync_enabled", False):
+                if not _sync_config.get("enabled", False):
                     print(f"[定时同步] 自动同步已关闭")
                     break
                 remaining = interval * 60 - i
                 if remaining % 60 == 0 or remaining <= 5:
-                    st.session_state["auto_sync_status"] = f"⏳ 等待中，剩余{remaining}秒"
+                    save_sync_status(f"⏳ 等待中，剩余{remaining}秒")
                 time.sleep(1)
-            
-            if not st.session_state.get("auto_sync_enabled", False):
+
+            if not _sync_config.get("enabled", False):
                 continue
-                
+
             print(f"[定时同步] 开始执行自动同步...")
-            st.session_state["auto_sync_status"] = "🔄 正在同步中..."
+            save_sync_status("🔄 正在同步中...")
             try:
                 sync_df = fetch_feishu_table()
                 if sync_df.empty:
                     print("[定时同步] 飞书表格无有效数据")
-                    st.session_state["auto_sync_alert"] = ("warning", "飞书表格无有效数据")
-                    st.session_state["auto_sync_status"] = f"⏳ 等待中，下次同步将在{interval}分钟后"
+                    save_sync_status(f"⏳ 等待中，下次同步将在{interval}分钟后", alert=("warning", "飞书表格无有效数据"))
                     continue
-                
+
                 col_mapping = {
                     "提交时间 Submitted At": "提交时间 Submitted by",
                     "状态 Status": "状态"
                 }
                 sync_df = sync_df.rename(columns=col_mapping)
                 sync_df["团单号"] = sync_df["团单号"].astype(str).str.strip()
-                
+
                 save_data(sync_df)
                 beijing_time = datetime.now(beijing_tz)
                 sync_time_str = beijing_time.strftime("%Y-%m-%d %H:%M:%S")
-                st.session_state["last_sync_time"] = sync_time_str
-                st.session_state["auto_sync_alert"] = ("success", f"🔄 自动同步完成！读取{len(sync_df)}条数据，同步时间: {sync_time_str}")
-                st.session_state["auto_sync_status"] = f"✅ 同步完成于 {sync_time_str}"
+                save_sync_status(f"✅ 同步完成于 {sync_time_str}",
+                                alert=("success", f"🔄 自动同步完成！读取{len(sync_df)}条数据，同步时间: {sync_time_str}"),
+                                last_sync_time=sync_time_str)
                 print(f"[定时同步] 完成: 飞书读取{len(sync_df)}条, 完全覆盖本地数据, 时间: {sync_time_str}")
-                
+
             except Exception as err:
                 print(f"[定时同步] 失败: {str(err)}")
-                st.session_state["auto_sync_alert"] = ("error", f"自动同步失败: {str(err)}")
-                st.session_state["auto_sync_status"] = f"❌ 同步失败，下次同步将在{interval}分钟后"
-                
+                save_sync_status(f"❌ 同步失败，下次同步将在{interval}分钟后",
+                                alert=("error", f"自动同步失败: {str(err)}"))
+
         except Exception as e:
             print(f"[定时同步] 线程异常: {str(e)}")
             time.sleep(60)
 
 def start_auto_sync_thread():
-    if "auto_sync_thread" not in st.session_state or not st.session_state["auto_sync_thread"].is_alive():
-        st.session_state["auto_sync_thread"] = threading.Thread(target=auto_sync_worker, daemon=True)
-        st.session_state["auto_sync_thread"].start()
-        print("[定时同步] 自动同步后台线程已启动")
+    """启动后台同步线程，使用模块级变量确保全局只启动一次（不依赖 st.session_state）"""
+    global _auto_sync_thread
+    with _auto_sync_thread_lock:
+        if _auto_sync_thread is None or not _auto_sync_thread.is_alive():
+            _auto_sync_thread = threading.Thread(target=auto_sync_worker, daemon=True)
+            _auto_sync_thread.start()
+            print("[定时同步] 自动同步后台线程已启动")
 
 def get_feishu_config():
     import os
@@ -402,45 +425,58 @@ def render_create_order(df):
             st.session_state["feishu_sync_running"] = False
         if "last_sync_time" not in st.session_state:
             st.session_state["last_sync_time"] = None
+        # 从模块级配置初始化 session_state（使后台线程与UI保持一致）
         if "auto_sync_enabled" not in st.session_state:
-            st.session_state["auto_sync_enabled"] = True
-        if "auto_sync_interval" not in st.session_state:
-            st.session_state["auto_sync_interval"] = 10
+            st.session_state["auto_sync_enabled"] = _sync_config["enabled"]
         if "auto_sync_alert" not in st.session_state:
             st.session_state["auto_sync_alert"] = None
 
         st.info(t["feishu_tip"])
-        col1, col2, col3 = st.columns([2, 1, 1])
+        col1, col2 = st.columns([2, 1])
         with col1:
             sync_btn = st.button(t["sync_btn"], type="primary", disabled=st.session_state["feishu_sync_running"])
         with col2:
             auto_sync_enabled = st.checkbox("🔄 自动定时同步", value=st.session_state["auto_sync_enabled"])
-        with col3:
-            auto_sync_interval = st.number_input("间隔(分钟)", min_value=1, max_value=1440, value=st.session_state["auto_sync_interval"])
 
-        if auto_sync_enabled != st.session_state["auto_sync_enabled"] or auto_sync_interval != st.session_state["auto_sync_interval"]:
+        if auto_sync_enabled != st.session_state["auto_sync_enabled"]:
             st.session_state["auto_sync_enabled"] = auto_sync_enabled
-            st.session_state["auto_sync_interval"] = auto_sync_interval
+            # 同步到模块级变量，后台线程通过此变量读取最新配置
+            _sync_config["enabled"] = auto_sync_enabled
             st.rerun()
 
+        sync_interval = _sync_config["interval"]
         if st.session_state["auto_sync_enabled"]:
-            st.success(f"✅ 自动同步已开启，每{st.session_state['auto_sync_interval']}分钟同步一次")
-            auto_sync_status = st.session_state.get("auto_sync_status", "🔧 后台线程准备启动...")
+            st.success(f"✅ 自动同步已开启，每{sync_interval}分钟同步一次")
+            sync_status_data = load_sync_status()
+            auto_sync_status = sync_status_data.get("status", "🔧 后台线程准备启动...")
             st.info(auto_sync_status)
-            
+
             try:
                 from streamlit_autorefresh import st_autorefresh
-                refresh_interval = st.session_state["auto_sync_interval"] * 60 * 1000
+                refresh_interval = sync_interval * 60 * 1000
                 st_autorefresh(interval=refresh_interval, key="auto_sync_refresh")
-                st.info(f"🔄 页面将每{st.session_state['auto_sync_interval']}分钟自动刷新以显示同步结果")
+                st.info(f"🔄 页面将每{sync_interval}分钟自动刷新以显示同步结果")
             except ImportError:
                 st.info("💡 提示：安装 streamlit-autorefresh 后页面可自动刷新以显示同步结果")
         else:
             st.info("⏸️ 自动同步已关闭")
 
-        if st.session_state["last_sync_time"]:
-            st.success(t["last_sync_text"].format(st.session_state["last_sync_time"]))
+        sync_status_data = load_sync_status()
+        last_sync_time = sync_status_data.get("last_sync_time") or st.session_state["last_sync_time"]
+        if last_sync_time:
+            st.success(t["last_sync_text"].format(last_sync_time))
+            st.session_state["last_sync_time"] = last_sync_time
 
+        if sync_status_data.get("alert"):
+            alert_type, alert_msg = sync_status_data["alert"]
+            if alert_type == "success":
+                st.success(alert_msg)
+            elif alert_type == "warning":
+                st.warning(alert_msg)
+            elif alert_type == "error":
+                st.error(alert_msg)
+            save_sync_status(sync_status_data["status"], alert=None)
+        
         if st.session_state["auto_sync_alert"]:
             alert_type, alert_msg = st.session_state["auto_sync_alert"]
             if alert_type == "success":
