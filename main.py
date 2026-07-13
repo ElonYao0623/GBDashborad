@@ -358,10 +358,9 @@ with st.sidebar:
     st.markdown("### 🌐 " + t["lang_label"])
     # label设为空字符串，减少额外DOM生成
     new_lang = st.selectbox(
-        label="语言选择",
+        label="",
         options=["zh", "en"],
-        format_func=lambda x: TEXT[x]["zh_name"] if x == "zh" else TEXT[x]["en_name"],
-        label_visibility="collapsed"
+        format_func=lambda x: TEXT[x]["zh_name"] if x == "zh" else TEXT[x]["en_name"]
     )
     if new_lang != lang:
         st.session_state["lang"] = new_lang
@@ -379,10 +378,9 @@ with st.sidebar:
     show_pages = list(all_pages.keys()) if user_role == "admin" else ["dashboard", "flow"]
 
     selected_page = st.radio(
-        label="页面选择",
+        label="",
         options=show_pages,
-        format_func=lambda k: all_pages[k],
-        label_visibility="collapsed"
+        format_func=lambda k: all_pages[k]
     )
     if selected_page != st.session_state["current_page"]:
         st.session_state["jump_status"] = None
