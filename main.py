@@ -40,120 +40,205 @@ if st.session_state["user_role"] is None:
 # ---------------------- 全局美化CSS（彻底消除下拉外框） ----------------------
 custom_css = """
 <style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+
 * {
-    font-family: "Microsoft YaHei", Arial, sans-serif;
+    font-family: "DM Sans", "Microsoft YaHei", Arial, sans-serif;
 }
+
+/* ====================== SaaS/Startup 主题配色 ====================== */
+/* 主背景:纯白#ffffff | 侧栏:浅灰#fafafa | 主色:现代紫#8b5cf6 | 文字:锌深#18181b | 链接:深紫#7c3aed | 边框:浅灰#e4e4e7 */
+
 .block-container {
     padding-top: 2rem;
     padding-bottom: 2rem;
     padding-left: 3rem;
     padding-right: 3rem;
 }
-h2, h3 {
-    color: #1e293b !important;
-    font-weight: 600;
+h1, h2, h3 {
+    font-family: "DM Sans", "Microsoft YaHei", sans-serif !important;
+    color: #18181b !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.3px;
 }
+code, pre {
+    font-family: "Fira Code", "Consolas", monospace !important;
+}
+
+/* ========== 折叠面板:现代圆角 + 柔和阴影 ========== */
 .stExpander {
-    border-radius: 12px !important;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important;
-    border: none !important;
+    border-radius: 0.75rem !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
+    border: 1px solid #e4e4e7 !important;
+    background: #ffffff !important;
+    transition: all 0.2s ease;
+}
+.stExpander:hover {
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.12) !important;
+    border-color: #8b5cf6 !important;
 }
 .stExpander > div:first-child {
-    border-radius: 12px !important;
+    border-radius: 0.75rem !important;
 }
+
+/* ========== 按钮:现代紫 + 友好圆角 ========== */
 .stButton > button {
-    border-radius: 8px !important;
-    height: 40px !important;
+    border-radius: 0.75rem !important;
+    height: 42px !important;
     font-weight: 500 !important;
+    background: #8b5cf6 !important;
+    color: #ffffff !important;
+    border: none !important;
+    box-shadow: 0 1px 3px rgba(139, 92, 246, 0.25) !important;
     transition: all 0.2s ease;
 }
 .stButton > button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+    background: #7c3aed !important;
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.35) !important;
+    transform: translateY(-1px);
 }
+
+/* 次要按钮(如删除):浅灰 */
+.stButton > button[k*="quick_del"] {
+    background: #f4f4f5 !important;
+    color: #18181b !important;
+    border: 1px solid #e4e4e7 !important;
+    box-shadow: none !important;
+}
+
 button[key^="btn_"] {
-    background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+    background: #8b5cf6 !important;
     color: #ffffff !important;
     border: none !important;
     font-weight: 500 !important;
-    border-radius: 8px !important;
-    height: 38px !important;
-    transition: all 0.24s ease;
+    border-radius: 0.75rem !important;
+    height: 40px !important;
+    box-shadow: 0 1px 3px rgba(139, 92, 246, 0.25) !important;
+    transition: all 0.2s ease;
 }
 button[key^="btn_"]:hover {
-    background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
-    transform: translateY(-3px);
-    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.32);
+    background: #7c3aed !important;
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.35) !important;
+    transform: translateY(-1px);
 }
+
+/* ========== 输入框/下拉框:现代圆角 + 浅边框 ========== */
 .stTextInput > div > div > input,
-.stSelectbox > div > div > select,
-.stDateInput > div > div > input {
-    border-radius: 8px !important;
-    border: 1px solid #e2e8f0 !important;
+.stSelectbox [data-baseweb="select"],
+.stDateInput > div > div > input,
+.stNumberInput > div > div > input {
+    border-radius: 0.75rem !important;
+    border: 1px solid #e4e4e7 !important;
+    background: #ffffff !important;
+    transition: all 0.15s ease;
 }
+.stTextInput > div > div > input:focus,
+.stSelectbox [data-baseweb="select"]:focus,
+.stDateInput > div > div > input:focus {
+    border-color: #8b5cf6 !important;
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.12) !important;
+}
+
+/* ========== 数据表格:现代圆角 + 阴影 ========== */
 .stDataFrame {
-    border-radius: 10px !important;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    border-radius: 0.75rem !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    border: 1px solid #e4e4e7 !important;
+    overflow: hidden;
 }
+
+/* ========== 分隔线:柔和渐变 ========== */
 hr {
     border: none;
     height: 1px;
-    background: linear-gradient(90deg, transparent, #cbd5e1, transparent);
+    background: linear-gradient(90deg, transparent, #e4e4e7, transparent);
     margin: 24px 0;
 }
+
+/* ========== 提示框:现代圆角 ========== */
 .stInfo, .stSuccess, .stWarning, .stError {
-    border-radius: 10px !important;
+    border-radius: 0.75rem !important;
+    border-width: 1px !important;
+}
+.stInfo {
+    background: #faf5ff !important;
+    border-color: #8b5cf6 !important;
+}
+.stSuccess {
+    background: #f0fdf4 !important;
+    border-color: #22c55e !important;
+}
+.stWarning {
+    background: #fffbeb !important;
+    border-color: #f59e0b !important;
+}
+.stError {
+    background: #fef2f2 !important;
+    border-color: #ef4444 !important;
 }
 
-/* ====================== 浅色系科技导航侧边栏（移除导航白色方框） ====================== */
+/* ========== Tab标签:现代风 ========== */
+.stTabs [role="tab"] {
+    border-radius: 0.75rem 0.75rem 0 0 !important;
+    padding: 8px 16px !important;
+    color: #18181b !important;
+    font-weight: 500 !important;
+}
+.stTabs [aria-selected="true"] {
+    background: #8b5cf6 !important;
+    color: #ffffff !important;
+}
+
+/* ====================== 浅灰侧边栏(SaaS风格) ====================== */
 [data-testid="stSidebar"] {
-    background-color: #f1f5f9 !important;
+    background: #fafafa !important;
     padding: 20px 12px !important;
+    border-right: 1px solid #e4e4e7 !important;
 }
-/* 侧边栏标题 */
 [data-testid="stSidebar"] h3 {
-    color: #0369a1 !important;
-    letter-spacing: 1px;
+    color: #8b5cf6 !important;
+    letter-spacing: 0.3px;
     padding-bottom: 8px;
+    font-family: "DM Sans", "Microsoft YaHei", sans-serif !important;
 }
-/* 单选框导航容器间距 */
 [data-testid="stSidebar"] .stRadio > div {
-    gap: 8px;
+    gap: 6px;
 }
-/* ========== 核心修改：移除导航按钮外框、灰色背景 ========== */
 [data-testid="stSidebar"] .stRadio label {
-    border-radius: 0;
-    padding: 8px 10px;
+    border-radius: 0.75rem;
+    padding: 10px 14px;
     background: transparent !important;
     border: none !important;
-    color: #1e293b;
-    transition: all 0.25s ease;
+    color: #18181b;
+    font-weight: 500;
+    transition: all 0.2s ease;
 }
-/* 鼠标悬浮仅文字变色，无外框 */
 [data-testid="stSidebar"] .stRadio label:hover {
-    background: rgba(14, 165, 233, 0.12);
+    background: rgba(139, 92, 246, 0.08) !important;
+    color: #8b5cf6 !important;
 }
-/* 当前选中导航 柔和浅蓝背景，无边框 */
 [data-testid="stSidebar"] .stRadio label:has(input:checked) {
-    background: linear-gradient(90deg, #3b82f6, #0ea5e9);
+    background: #8b5cf6 !important;
     color: white !important;
     font-weight: 600;
+    box-shadow: 0 1px 3px rgba(139, 92, 246, 0.3);
 }
-/* 侧边栏返回按钮浅科技蓝 */
 [data-testid="stSidebar"] .stButton button {
-    background: linear-gradient(90deg, #3b82f6, #0284c7) !important;
-    border: 1px solid #0ea5e9 !important;
-    box-shadow: 0 0 4px rgba(14,165,233,0.15);
+    background: #8b5cf6 !important;
+    border: none !important;
+    border-radius: 0.75rem !important;
+    box-shadow: 0 1px 3px rgba(139, 92, 246, 0.25);
 }
 [data-testid="stSidebar"] .stButton button:hover {
-    box-shadow: 0 0 10px rgba(14,165,233,0.3);
+    background: #7c3aed !important;
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.35);
 }
-/* 侧边下拉文字深色适配浅色背景 */
+
+/* 侧边下拉文字适配 */
 [data-testid="stSidebar"] .stSelectbox label,
 [data-testid="stSidebar"] .stSelectbox div {
-    color: #1e293b !important;
+    color: #18181b !important;
 }
-/* 彻底隐藏外层容器边框阴影，只保留输入框细线 */
 [data-testid="stSidebar"] div:has(.stSelectbox) {
     border: none !important;
     box-shadow: none !important;
@@ -166,10 +251,45 @@ hr {
     box-shadow: none !important;
     background: transparent !important;
 }
-/* 仅内部输入框留一条细边框 */
 [data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] {
-    border: 1px solid #cbd5e1 !important;
-    border-radius: 6px !important;
+    border: 1px solid #e4e4e7 !important;
+    border-radius: 0.75rem !important;
+}
+
+/* ========== 指标卡:现代圆角 ========== */
+[data-testid="stMetric"] {
+    background: #fafafa !important;
+    padding: 16px 20px !important;
+    border-radius: 0.75rem !important;
+    border: 1px solid #e4e4e7 !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+
+/* ========== 链接:深紫 ========== */
+a {
+    color: #7c3aed !important;
+    text-decoration: none;
+    transition: color 0.15s;
+}
+a:hover {
+    color: #8b5cf6 !important;
+    text-decoration: underline;
+}
+
+/* ========== 滚动条:现代风 ========== */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #fafafa;
+}
+::-webkit-scrollbar-thumb {
+    background: #e4e4e7;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #8b5cf6;
 }
 </style>
 """
