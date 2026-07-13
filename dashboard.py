@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date
-from config import get_workflow_step_text, get_standard_status, STATUS_WORKFLOW_MAP
+from config import get_workflow_step_text, get_standard_status, WORKFLOW_STEPS_ZH
 
 PAGE_TEXT = {
     "zh": {
@@ -53,9 +53,6 @@ def render_dashboard(df):
     font_prop = fm.FontProperties()
     lang = st.session_state.get("lang", "zh")
     t = PAGE_TEXT[lang]
-    view_label = f"🔍 {t['btn_view']}"
-    st.header(f"📊 {t['page_name']}")
-    st.divider()
     active_df = df.copy()
     # 预处理状态消除NaN报错 - 兼容"状态"和"状态 Status"两种列名
     status_col = "状态" if "状态" in active_df.columns else "状态 Status" if "状态 Status" in active_df.columns else None
@@ -67,54 +64,71 @@ def render_dashboard(df):
     total = len(active_df)
     st.metric(t["total_order"], total)
     st.divider()
-    
+
     _,mid,_ = st.columns([1,2,1])
     with mid:
-        all_status_values = active_df["状态"].astype(str).str.strip().unique().tolist()
-        all_status_values = [v for v in all_status_values if v and v != "nan"]
-        
-        status_display_map = {}
-        for val in all_status_values:
-            std_status = get_standard_status(val)
-            display_text = get_workflow_step_text(lang, std_status)
-            if display_text not in status_display_map:
-                status_display_map[display_text] = []
-            status_display_map[display_text].append(val)
-        
+        # 预处理：过滤掉空状态/无效状态
+        mask_valid = active_df["标准状态"].isin(WORKFLOW_STEPS_ZH)
+        valid_df = active_df[mask_valid].copy()
+
+        # 按工作流顺序统计各状态数量
         status_counts = {}
-        for display_text, orig_values in status_display_map.items():
-            mask = active_df["状态"].astype(str).str.strip().isin(orig_values)
-            status_counts[display_text] = len(active_df[mask])
-        
-        labels = list(status_counts.keys())
-        values = list(status_counts.values())
-        
+        display_to_std = {}
+        for std_status in WORKFLOW_STEPS_ZH:
+            display_text = get_workflow_step_text(lang, std_status)
+            status_counts[display_text] = 0
+            display_to_std[display_text] = std_status
+
+        std_counts = valid_df.groupby("标准状态").size()
+        for std_status in WORKFLOW_STEPS_ZH:
+            display_text = get_workflow_step_text(lang, std_status)
+            status_counts[display_text] = int(std_counts.get(std_status, 0))
+
+        # 只保留有订单的状态
+        non_zero = {k: v for k, v in status_counts.items() if v > 0}
+
+        labels = list(non_zero.keys())
+        values = list(non_zero.values())
+
         if not values or sum(values) == 0:
             st.info(t["no_data_text"])
         else:
-            fig,ax = plt.subplots(figsize=(4.2,4.2))
-            ax.pie(values, labels=labels, autopct="%1.1f%%", textprops={"fontproperties": font_prop})
-            ax.set_title(t["pie_title"], fontproperties=font_prop)
+            import numpy as np
+            fig, ax = plt.subplots(figsize=(9, 9))
+            fig.patch.set_facecolor("white")
+            colors_list = plt.cm.tab20(np.linspace(0, 1, len(labels)))
+            # 外部标签：状态名+百分比，引线连接
+            total_v = sum(values)
+            labels_pct = [f"{l}  {v/total_v*100:.1f}%" for l, v in zip(labels, values)]
+            wedges, texts = ax.pie(
+                values,
+                labels=labels_pct,
+                labeldistance=1.18,
+                colors=colors_list,
+                startangle=90,
+                wedgeprops=dict(width=0.65, edgecolor="white", linewidth=2),
+                textprops=dict(fontproperties=font_prop, fontsize=30, fontweight="bold", color="black")
+            )
+            ax.set_title(t["pie_title"], fontproperties=font_prop, fontsize=15, fontweight="bold", pad=20)
             ax.axis("equal")
-            st.pyplot(fig)
-    st.divider()
-    
-    hide_list = ["inquiry_failed","customer_confirm_failed","group_booking_failed","awaiting_hotel_lock","considering_alternative","inquiry_succeeded","customer_inquiry","customer_confirmed_group","awaiting_ops_review"]
-    all_status = list(STATUS_WORKFLOW_MAP.keys())
-    show_status = [s for s in all_status if s not in hide_list]
-    stat = {}
-    for s in show_status:
-        stat[s] = len(active_df[active_df["标准状态"] == s])
-    stat_list = list(stat.items())
-    for i in range(0, len(stat_list),4):
-        chunk = stat_list[i:i+4]
-        cols = st.columns(4)
-        for idx,(name,cnt) in enumerate(chunk):
-            with cols[idx]:
-                st.metric(get_workflow_step_text(lang, name), cnt)
-                if st.button(view_label, key=f"dash_{name}", use_container_width=True):
-                    st.session_state["jump_status"] = name
-                    st.rerun()
+            ax.set_position([0.1, 0.15, 0.8, 0.75])
+            st.pyplot(fig, use_container_width=True)
+            plt.close(fig)
+
+            # 点击跳转按钮：每行4个
+            cols_per_row = 4
+            for i in range(0, len(labels), cols_per_row):
+                btns = st.columns(cols_per_row)
+                for j in range(cols_per_row):
+                    idx = i + j
+                    if idx < len(labels):
+                        lbl = labels[idx]
+                        std_key = display_to_std.get(lbl)
+                        with btns[j]:
+                            if st.button(f"🔍 {lbl} ({values[idx]})", key=f"pie_btn_{idx}", use_container_width=True):
+                                if std_key:
+                                    st.session_state["jump_status"] = std_key
+                                    st.rerun()
     st.divider()
     st.subheader(t["days_title"])
     def calc_day(s):
@@ -155,7 +169,7 @@ def render_dashboard(df):
     group_cnt = grouped_df["入住天数分组"].value_counts().reindex(group_order, fill_value=0)
     
     fig3,ax3 = plt.subplots(figsize=(11,4.5))
-    bars = ax3.bar(group_cnt.index, group_cnt.values, color="#10b981")
+    bars = ax3.bar(group_cnt.index, group_cnt.values, color="#8b5cf6")
     ax3.set_xlabel(t["days_x_label"], fontproperties=font_prop)
     ax3.set_ylabel(t["days_y_label"], fontproperties=font_prop)
     ax3.tick_params(axis="x", labelsize=10)
@@ -171,7 +185,7 @@ def render_dashboard(df):
     team_df["team_temp"] = team_df["Salesteam"].fillna("无销售团队").astype(str).str.strip()
     team_cnt = team_df["team_temp"].value_counts()
     fig2,ax2 = plt.subplots(figsize=(11,4.5))
-    bars = ax2.bar(team_cnt.index, team_cnt.values, color="#3b82f6")
+    bars = ax2.bar(team_cnt.index, team_cnt.values, color="#8b5cf6")
     ax2.set_xlabel(t["team_x_label"], fontproperties=font_prop)
     ax2.set_ylabel(t["team_y_label"], fontproperties=font_prop)
     ax2.tick_params(axis="x", rotation=45, labelsize=10)
