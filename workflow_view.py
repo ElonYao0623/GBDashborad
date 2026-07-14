@@ -31,7 +31,7 @@ PAGE_TEXT = {
         "room_count": "房间数",
         "fail_reason": "未成单原因",
         "Unknown": "未知"
-        "ops_remark"："运营备注"
+        "ops_remark": "运营备注"
     },
     "en": {
         "page_header": "Group Booking Full Process Tracking Board",
