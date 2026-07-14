@@ -8,7 +8,7 @@ import time
 from config import save_data, STATUS_WORKFLOW_MAP, get_workflow_step_text, load_data, fetch_feishu_table
 
 # 模块级变量：后台线程通过这些变量与主线程通信（不能用 st.session_state，因为它是 thread-local 的）
-_sync_config = {"enabled": True, "interval": 10}
+_sync_config = {"enabled": True, "interval": 1}
 _sync_status = {"status": "未启动", "alert": None, "last_sync_time": None}
 _auto_sync_thread = None
 _auto_sync_thread_lock = threading.Lock()
