@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import traceback
 import threading
@@ -8,7 +8,7 @@ import time
 from config import save_data, STATUS_WORKFLOW_MAP, get_workflow_step_text, load_data, fetch_feishu_table
 
 # 模块级变量：后台线程通过这些变量与主线程通信（不能用 st.session_state，因为它是 thread-local 的）
-_sync_config = {"enabled": True, "interval": 1}
+_sync_config = {"enabled": True, "interval": 60}
 _sync_status = {"status": "未启动", "alert": None, "last_sync_time": None}
 _auto_sync_thread = None
 _auto_sync_thread_lock = threading.Lock()
@@ -447,35 +447,50 @@ def render_create_order(df):
         sync_interval = _sync_config["interval"]
         if st.session_state["auto_sync_enabled"]:
             st.success(f"✅ 自动同步已开启，每{sync_interval}分钟同步一次")
+
+            @st.fragment(run_every=timedelta(minutes=sync_interval))
+            def _auto_refresh_status():
+                # 在 fragment 内重新读取并显示，确保自动刷新时同步更新结果
+                sync_status_data = load_sync_status()
+                auto_sync_status = sync_status_data.get("status", "🔧 后台线程准备启动...")
+                st.info(auto_sync_status)
+                st.info(f"🔄 后台每{sync_interval}分钟自动同步飞书表格")
+
+                last_sync_time = sync_status_data.get("last_sync_time")
+                if last_sync_time:
+                    st.success(t["last_sync_text"].format(last_sync_time))
+                    st.session_state["last_sync_time"] = last_sync_time
+
+                if sync_status_data.get("alert"):
+                    alert_type, alert_msg = sync_status_data["alert"]
+                    if alert_type == "success":
+                        st.success(alert_msg)
+                    elif alert_type == "warning":
+                        st.warning(alert_msg)
+                    elif alert_type == "error":
+                        st.error(alert_msg)
+                    save_sync_status(sync_status_data["status"], alert=None)
+
+            # 首次加载时立即显示一次（fragment 之外）
             sync_status_data = load_sync_status()
             auto_sync_status = sync_status_data.get("status", "🔧 后台线程准备启动...")
             st.info(auto_sync_status)
-
-            try:
-                from streamlit_autorefresh import st_autorefresh
-                refresh_interval = sync_interval * 60 * 1000
-                st_autorefresh(interval=refresh_interval, key="auto_sync_refresh")
-                st.info(f"🔄 页面将每{sync_interval}分钟自动刷新以显示同步结果")
-            except ImportError:
-                st.info("💡 提示：安装 streamlit-autorefresh 后页面可自动刷新以显示同步结果")
+            st.info(f"🔄 后台每{sync_interval}分钟自动同步飞书表格")
+            last_sync_time = sync_status_data.get("last_sync_time") or st.session_state["last_sync_time"]
+            if last_sync_time:
+                st.success(t["last_sync_text"].format(last_sync_time))
+                st.session_state["last_sync_time"] = last_sync_time
+            if sync_status_data.get("alert"):
+                alert_type, alert_msg = sync_status_data["alert"]
+                if alert_type == "success":
+                    st.success(alert_msg)
+                elif alert_type == "warning":
+                    st.warning(alert_msg)
+                elif alert_type == "error":
+                    st.error(alert_msg)
+                save_sync_status(sync_status_data["status"], alert=None)
         else:
             st.info("⏸️ 自动同步已关闭")
-
-        sync_status_data = load_sync_status()
-        last_sync_time = sync_status_data.get("last_sync_time") or st.session_state["last_sync_time"]
-        if last_sync_time:
-            st.success(t["last_sync_text"].format(last_sync_time))
-            st.session_state["last_sync_time"] = last_sync_time
-
-        if sync_status_data.get("alert"):
-            alert_type, alert_msg = sync_status_data["alert"]
-            if alert_type == "success":
-                st.success(alert_msg)
-            elif alert_type == "warning":
-                st.warning(alert_msg)
-            elif alert_type == "error":
-                st.error(alert_msg)
-            save_sync_status(sync_status_data["status"], alert=None)
         
         if st.session_state["auto_sync_alert"]:
             alert_type, alert_msg = st.session_state["auto_sync_alert"]
