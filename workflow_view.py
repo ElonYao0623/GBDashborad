@@ -230,8 +230,8 @@ def render_workflow_view(df):
         days = row.get("距离入住天数", "")
         status = row.get("状态", "")
 
-        days_text = days if days and days != "None" else t["day_all"]
-        std_status = get_standard_status(status)
+        days_valid = pd.notna(days) and str(days) != "None"
+        days_text = days if days_valid else t["day_all"]
         display_status = get_workflow_step_text(lang, std_status)
         expander_title = t["expander_title"].format(order_no, customer, hotel, display_status, days_text)
         with st.expander(expander_title):
