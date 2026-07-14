@@ -30,7 +30,7 @@ PAGE_TEXT = {
         "suggested_price": "建议卖价",
         "room_count": "房间数",
         "fail_reason": "未成单原因",
-        "Unknown": "未知"
+        "Unknown": "未知",
         "ops_remark": "运营备注"
     },
     "en": {
@@ -60,7 +60,7 @@ PAGE_TEXT = {
         "suggested_price": "Suggested Selling Price",
         "room_count": "Rooms",
         "fail_reason": "Uncompleted Reason",
-        "Unknown": "Unknown"
+        "Unknown": "Unknown",
         "ops_remark": "OP Notes"
     }
 }
