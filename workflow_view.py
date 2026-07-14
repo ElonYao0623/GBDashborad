@@ -31,7 +31,7 @@ PAGE_TEXT = {
         "room_count": "房间数",
         "fail_reason": "未成单原因",
         "Unknown": "未知"
-        "ops_notes":"运营备注"
+        "ops_reamrk":"运营备注"
     },
     "en": {
         "page_header": "Group Booking Full Process Tracking Board",
@@ -61,7 +61,7 @@ PAGE_TEXT = {
         "room_count": "Rooms",
         "fail_reason": "Uncompleted Reason",
         "Unknown": "Unknown"
-        "ops_notes": "OP Notes"
+        "ops_remark": "OP Notes"
     }
 }
 def safe_val(val):
@@ -256,4 +256,4 @@ def render_workflow_view(df):
                 st.write(f"**{t['room_count']}**: {safe_val(row.get('房间数 Rooms', ''))}")
             with col3:
                 st.write(f"**{t['fail_reason']}**: {safe_val(row.get('未成单原因', ''))}")
-                st.write(f"**{t['ops_notes']}**: {safe_val(row.get('运营备注', ''))}")
+                st.write(f"**{t['ops_remark']}**: {safe_val(row.get('运营备注 Ops Notes', ''))}")
