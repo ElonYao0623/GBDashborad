@@ -45,12 +45,12 @@ def auto_sync_worker():
             print(f"[定时同步] 已启用，间隔{interval}分钟，等待下次同步...")
             save_sync_status(f"⏳ 等待中，下次同步将在{interval}分钟后")
 
-            for i in range(interval * 60):
+            for i in range(interval * 10):
                 if not _sync_config.get("enabled", False):
                     print(f"[定时同步] 自动同步已关闭")
                     break
-                remaining = interval * 60 - i
-                if remaining % 60 == 0 or remaining <= 5:
+                remaining = interval * 10 - i
+                if remaining % 10 == 0 or remaining <= 5:
                     save_sync_status(f"⏳ 等待中，剩余{remaining}秒")
                 time.sleep(1)
 
