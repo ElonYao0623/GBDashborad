@@ -70,12 +70,25 @@ def get_standard_status(status_key):
     status_key = str(status_key).strip()
     if not status_key:
         return ""
+    # 1. 直接是标准 key
     if status_key in STATUS_WORKFLOW_MAP:
         return status_key
+    # 2. 精确匹配中/英文
     for key, mapping in STATUS_WORKFLOW_MAP.items():
         if mapping["zh"] == status_key or mapping["en"] == status_key:
             return key
-        if mapping["zh"] in status_key or mapping["en"] in status_key:
+    # 3. 处理 "中文 - English" 格式：按 " - " 拆分后精确匹配
+    parts = [p.strip() for p in status_key.split(" - ")]
+    if len(parts) == 2:
+        zh_part, en_part = parts
+        for key, mapping in STATUS_WORKFLOW_MAP.items():
+            if mapping["zh"] == zh_part or mapping["en"] == en_part:
+                return key
+    # 4. 兜底：子串匹配（仅当标准名长度 >=3 时，避免误匹配）
+    for key, mapping in STATUS_WORKFLOW_MAP.items():
+        if len(mapping["zh"]) >= 3 and mapping["zh"] in status_key:
+            return key
+        if len(mapping["en"]) >= 3 and mapping["en"] in status_key:
             return key
     return status_key
 
