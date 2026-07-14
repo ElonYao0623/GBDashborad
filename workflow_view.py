@@ -232,6 +232,7 @@ def render_workflow_view(df):
 
         days_valid = pd.notna(days) and str(days) != "None"
         days_text = days if days_valid else t["day_all"]
+        std_status = get_standard_status(status)
         display_status = get_workflow_step_text(lang, std_status)
         expander_title = t["expander_title"].format(order_no, customer, hotel, display_status, days_text)
         with st.expander(expander_title):
@@ -239,7 +240,7 @@ def render_workflow_view(df):
             with col1:
                 st.write(f"**Order No**: {safe_val(order_no)}")
                 st.write(f"**User ID**: {safe_val(row.get('User ID', ''))}")
-                st.write(f"**{t['distance_checkin']}**: {days} days" if days and days != "None" else f"**{t['distance_checkin']}**: {t['day_all']}")
+                st.write(f"**{t['distance_checkin']}**: {days} days" if days_valid else f"**{t['distance_checkin']}**: {t['day_all']}")
                 status_days = row.get("状态持续天数", "")
                 st.write(f"**{t['status_duration']}**: {status_days} days" if status_days and status_days != "Unknown" else f"**{t['status_duration']}**: {t['Unknown']}")
                 st.write(f"**{t['checkin_date']}**: {safe_val(checkin)}")
