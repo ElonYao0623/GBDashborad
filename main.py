@@ -5,6 +5,9 @@ from workflow_view import render_workflow_view
 from order_create import render_create_order
 from order_manage import render_order_manage
 from status_detail import render_status_detail
+from Hotel_list import render_hotel_list
+from price_compare import render_price_compare
+from price_compare_dashboard import render_price_compare_dashboard
 
 # 全局页面配置
 st.set_page_config(
@@ -324,6 +327,9 @@ TEXT = {
         "flow": "流程进度跟踪看板",
         "new_order": "新增团单",
         "list_manage": "团单列表管理",
+        "hotel_list": "优势酒店名单",
+        "price_compare": "比价",
+        "price_dashboard": "比价看板",
         "back": "← 返回数据统计看板"
     },
     "en": {
@@ -336,6 +342,9 @@ TEXT = {
         "flow": "Workflow Tracking",
         "new_order": "New Group Booking",
         "list_manage": "Booking Manage",
+        "hotel_list": "Preferred Hotels",
+        "price_compare": "Price Compare",
+        "price_dashboard": "Price Dashboard",
         "back": "← Back to Dashboard"
     }
 }
@@ -373,10 +382,13 @@ with st.sidebar:
     all_pages = {
         "dashboard": t["dash"],
         "flow": t["flow"],
+        "hotel_list": t["hotel_list"],
+        "price_dashboard": t["price_dashboard"],
+        "price_compare": t["price_compare"],
         "new_order": t["new_order"],
         "list_manage": t["list_manage"]
     }
-    show_pages = list(all_pages.keys()) if user_role == "admin" else ["dashboard", "flow"]
+    show_pages = list(all_pages.keys()) if user_role == "admin" else ["dashboard", "flow", "hotel_list", "price_dashboard"]
 
     selected_page = st.radio(
         label="页面选择",
@@ -408,3 +420,9 @@ else:
         render_create_order(df)
     elif active_p == "list_manage" and user_role == "admin":
         render_order_manage(df)
+    elif active_p == "hotel_list":
+        render_hotel_list(df)
+    elif active_p == "price_compare" and user_role == "admin":
+        render_price_compare(df)
+    elif active_p == "price_dashboard":
+        render_price_compare_dashboard()
