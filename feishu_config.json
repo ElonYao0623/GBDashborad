@@ -1,0 +1,8 @@
+{
+  "app_id": "cli_a952da2f0bbc5cc3",
+  "app_secret": "Z4jiLTHFcSleLGGdta465eTcGDwiqkSH",
+  "spreadsheet_token": "DhZssUPeLhxPbEt8gK0cTSCZn5d",
+  "sheet_id": "dd6cdc",
+  "price_sheet_id": "WH9oZd",
+  "output_csv": "order_data.csv"
+}

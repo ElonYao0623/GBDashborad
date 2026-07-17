@@ -142,23 +142,38 @@ def load_feishu_config():
     return {}
 
 def fetch_feishu_table():
+    return _fetch_feishu_sheet("sheet_id", "sheet_id")
+
+
+def fetch_feishu_price_table():
+    """获取飞书比价数据表格（使用 price_sheet_id 配置）"""
+    return _fetch_feishu_sheet("price_sheet_id", "price_sheet_id")
+
+
+def write_feishu_price_table(df):
+    """写入飞书比价数据表格"""
+    return _write_feishu_sheet(df, "price_sheet_id", "price_sheet_id")
+
+
+def _fetch_feishu_sheet(config_key, label):
+    """通用飞书表格读取函数"""
     config = load_feishu_config()
-    
+
     try:
         import streamlit as st
         st_secrets = st.secrets
     except:
         st_secrets = {}
-    
+
     app_id = os.environ.get("FEISHU_APP_ID") or st_secrets.get("FEISHU_APP_ID", "") or config.get("app_id", "")
     app_secret = os.environ.get("FEISHU_APP_SECRET") or st_secrets.get("FEISHU_APP_SECRET", "") or config.get("app_secret", "")
     spreadsheet_token = os.environ.get("FEISHU_SPREADSHEET_TOKEN") or st_secrets.get("FEISHU_SPREADSHEET_TOKEN", "") or config.get("spreadsheet_token", "")
-    sheet_id = os.environ.get("FEISHU_SHEET_ID") or st_secrets.get("FEISHU_SHEET_ID", "") or config.get("sheet_id", "")
+    sheet_id = os.environ.get(f"FEISHU_{label.upper()}") or st_secrets.get(f"FEISHU_{label.upper()}", "") or config.get(config_key, "")
 
     if not app_id or not app_secret:
         raise Exception("未配置飞书app_id或app_secret！请在Streamlit Secrets或feishu_config.json中配置")
     if not sheet_id:
-        raise Exception("未配置sheet_id！请在Streamlit Secrets或feishu_config.json中添加sheet_id字段")
+        raise Exception(f"未配置{config_key}！请在Streamlit Secrets或feishu_config.json中添加{config_key}字段")
 
     try:
         token = get_tenant_token(app_id, app_secret)
@@ -172,10 +187,10 @@ def fetch_feishu_table():
     resp = requests.get(url, headers=headers, timeout=12)
     res = resp.json()
     print(f"[飞书同步] 读取表格API响应: {json.dumps(res, ensure_ascii=False)}")
-    
+
     if res.get("code") != 0:
         if res.get("code") == 90215:
-            raise Exception(f"错误码90215: 未找到sheetId！请确认feishu_config.json中的sheet_id是否正确")
+            raise Exception(f"错误码90215: 未找到sheetId！请确认feishu_config.json中的{config_key}是否正确")
         if res.get("code") == 99991672:
             raise Exception(f"错误码99991672: 需要开通飞书权限！请访问以下链接开通权限：\nhttps://open.feishu.cn/app/{app_id}/auth?q=drive:file:readonly&op_from=openapi&token_type=tenant")
         raise Exception(f"读取表格失败:{res}")
@@ -187,15 +202,15 @@ def fetch_feishu_table():
 
     headers = values[0]
     data_rows = values[1:] if len(values) > 1 else []
-    
+
     df = pd.DataFrame(data_rows, columns=headers)
 
     for col in df.columns:
         df[col] = df[col].apply(lambda x: _parse_feishu_cell(x))
         df[col] = df[col].str.strip().str.replace(r"[\n\r]", "", regex=True)
-    
+
     df = df.replace(["nan", "None", "[]"], "")
-    
+
     print(f"[飞书同步] 成功读取 {len(df)} 条数据，列名: {list(df.columns)}")
     return df
 
@@ -211,6 +226,64 @@ def _parse_feishu_cell(value):
                 text_parts.append(str(item))
         return "".join(text_parts)
     return str(value)
+
+
+def _write_feishu_sheet(df, config_key, label):
+    """通用飞书表格写入函数"""
+    config = load_feishu_config()
+
+    try:
+        import streamlit as st
+        st_secrets = st.secrets
+    except:
+        st_secrets = {}
+
+    app_id = os.environ.get("FEISHU_APP_ID") or st_secrets.get("FEISHU_APP_ID", "") or config.get("app_id", "")
+    app_secret = os.environ.get("FEISHU_APP_SECRET") or st_secrets.get("FEISHU_APP_SECRET", "") or config.get("app_secret", "")
+    spreadsheet_token = os.environ.get("FEISHU_SPREADSHEET_TOKEN") or st_secrets.get("FEISHU_SPREADSHEET_TOKEN", "") or config.get("spreadsheet_token", "")
+    sheet_id = os.environ.get(f"FEISHU_{label.upper()}") or st_secrets.get(f"FEISHU_{label.upper()}", "") or config.get(config_key, "")
+
+    if not app_id or not app_secret:
+        raise Exception("未配置飞书app_id或app_secret！请在Streamlit Secrets或feishu_config.json中配置")
+    if not sheet_id:
+        raise Exception(f"未配置{config_key}！请在Streamlit Secrets或feishu_config.json中添加{config_key}字段")
+
+    try:
+        token = get_tenant_token(app_id, app_secret)
+        print(f"[飞书写入] Tenant Access Token获取成功，token长度: {len(token)}")
+    except Exception as e:
+        print(f"[飞书写入] Token获取失败: {str(e)}")
+        raise
+
+    url = f"https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{spreadsheet_token}/values"
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    values = [list(df.columns)] + df.fillna("").values.tolist()
+    
+    print(f"[飞书写入] 准备写入{len(values)-1}条数据，列名: {list(df.columns)}")
+    print(f"[飞书写入] 数据预览(前2行): {values[:2]}")
+
+    body = {
+        "valueRange": {
+            "range": f"{sheet_id}!A1:{chr(64+len(df.columns))}{len(values)}",
+            "values": values
+        },
+        "valueInputOption": "USER_ENTERED"
+    }
+
+    print(f"[飞书写入] 请求URL: {url}")
+    print(f"[飞书写入] 请求体: {json.dumps(body, ensure_ascii=False)[:500]}...")
+    
+    resp = requests.put(url, headers=headers, json=body, timeout=12)
+    res = resp.json()
+    print(f"[飞书写入] HTTP状态码: {resp.status_code}")
+    print(f"[飞书写入] 写入表格API响应: {json.dumps(res, ensure_ascii=False)}")
+
+    if res.get("code") != 0:
+        raise Exception(f"写入表格失败:{res}")
+
+    print(f"[飞书写入] 成功写入 {len(df)} 条数据")
+    return True
 
 def configure_matplotlib_font():
     import matplotlib
