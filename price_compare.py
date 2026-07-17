@@ -7,7 +7,7 @@ import streamlit as st
 import pandas as pd
 import os
 import re
-from config import DATA_FILE
+from config import DATA_FILE, fetch_feishu_price_table, write_feishu_price_table, load_feishu_config
 
 PRICE_FILE = "price_compare.csv"
 
@@ -108,7 +108,16 @@ PAGE_TEXT = {
 
 
 def _load_price_data():
-    """加载已保存的比价数据"""
+    """加载已保存的比价数据（优先从飞书读取，云部署持久化）"""
+    try:
+        feishu_df = fetch_feishu_price_table()
+        if not feishu_df.empty:
+            print("[比价数据] 从飞书表格加载成功，共{}条数据".format(len(feishu_df)))
+            return feishu_df.fillna("")
+        print("[比价数据] 飞书表格为空，尝试从本地CSV加载")
+    except Exception as e:
+        print("[比价数据] 飞书加载失败，尝试从本地CSV加载: {}".format(str(e)))
+    
     if os.path.exists(PRICE_FILE):
         try:
             return pd.read_csv(PRICE_FILE, encoding="utf-8-sig", dtype=str).fillna("")
@@ -368,14 +377,18 @@ def render_price_compare(df):
             merged[c] = ""
     merged = merged[all_cols]
 
-    # 用 session_state 维护表格数据；CSV 更新时重新加载
-    # 添加编辑标志，防止编辑过程中因 CSV mtime 变化而重置数据
+    # 用 session_state 维护表格数据
+    # 优先使用 session_state 中的数据（云部署时已同步到飞书）
+    # 只有当 session_state 中没有数据时，才从飞书/CSV 加载
     import os as _os
     csv_mtime = _os.path.getmtime(PRICE_FILE) if _os.path.exists(PRICE_FILE) else 0
     is_editing = st.session_state.get("price_df_editing", False)
     
-    if not is_editing:
-        if "price_df" not in st.session_state or st.session_state.get("price_df_csv_mtime", 0) != csv_mtime:
+    if "price_df" not in st.session_state:
+        st.session_state["price_df"] = merged.copy()
+        st.session_state["price_df_csv_mtime"] = csv_mtime
+    elif not is_editing:
+        if st.session_state.get("price_df_csv_mtime", 0) != csv_mtime:
             st.session_state["price_df"] = merged.copy()
             st.session_state["price_df_csv_mtime"] = csv_mtime
     
@@ -629,7 +642,20 @@ def render_price_compare(df):
             # 同步 mtime，避免下次 rerun 时误判 CSV 变化而重置编辑中的数据
             import os as _os2
             st.session_state["price_df_csv_mtime"] = _os2.path.getmtime(PRICE_FILE) if _os2.path.exists(PRICE_FILE) else 0
-            st.success(t["save_success"].format(len(new_price_df)))
+            
+            # 同步到飞书表格（云部署持久化）
+            fs_config = load_feishu_config()
+            if fs_config.get("price_sheet_id"):
+                try:
+                    write_feishu_price_table(new_price_df)
+                    st.success(f"{t['save_success'].format(len(new_price_df))}（已同步到飞书比价表格）")
+                    print(f"[比价同步] 成功同步{len(new_price_df)}条数据到飞书表格")
+                except Exception as fs_err:
+                    st.warning(f"{t['save_success'].format(len(new_price_df))}（飞书同步失败: {str(fs_err)}）")
+                    print(f"[比价同步] 飞书同步失败: {str(fs_err)}")
+            else:
+                st.success(t["save_success"].format(len(new_price_df)))
+                print(f"[比价同步] 未配置飞书比价表格，仅保存到本地CSV")
         except Exception as e:
             st.error(t["save_error"].format(str(e)))
 
@@ -648,9 +674,20 @@ def render_price_compare(df):
                 t["col_price"]: 0,
                 **{p: 0 for p in PLATFORMS}
             }])
-            st.session_state["price_df"] = pd.concat(
-                [new_price_df, new_hotel_row], ignore_index=True
-            )
+            updated_df = pd.concat([new_price_df, new_hotel_row], ignore_index=True)
+            st.session_state["price_df"] = updated_df.copy()
+            
+            # 立即保存到本地CSV和飞书，防止页面刷新后丢失
+            try:
+                _save_price_data(updated_df)
+                try:
+                    write_feishu_price_table(updated_df)
+                    print("[添加酒店] 成功保存到飞书")
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            
             st.rerun()
 
     # 撤销删除按钮（仅当存在备份时显示）
