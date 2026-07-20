@@ -75,7 +75,13 @@ def _calc_pct_diff(val, base):
 
 
 def _load_price_data():
-    """加载已保存的比价数据"""
+    """加载比价数据，优先使用 session_state（编辑中的数据），回退到 CSV"""
+    try:
+        if "price_df" in st.session_state and st.session_state.get("price_df_editing", False):
+            return st.session_state["price_df"].copy().fillna("")
+    except Exception:
+        pass
+    
     if os.path.exists(PRICE_FILE):
         try:
             return pd.read_csv(PRICE_FILE, encoding="utf-8-sig", dtype=str).fillna("")
