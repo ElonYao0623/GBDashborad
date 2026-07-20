@@ -179,17 +179,16 @@ def render_dashboard(df):
     st.pyplot(fig3)
     st.divider()
     st.subheader(t["team_chart_title"])
-    team_df = active_df.copy()
+    team_df = df.copy()
     if "Salesteam" not in team_df.columns:
         team_df["Salesteam"] = ""
     team_df["team_temp"] = team_df["Salesteam"].fillna("无销售团队").astype(str).str.strip()
     team_cnt = team_df["team_temp"].value_counts()
-    fig2,ax2 = plt.subplots(figsize=(11,4.5))
-    bars = ax2.bar(team_cnt.index, team_cnt.values, color="#8b5cf6")
-    ax2.set_xlabel(t["team_x_label"], fontproperties=font_prop)
-    ax2.set_ylabel(t["team_y_label"], fontproperties=font_prop)
-    ax2.tick_params(axis="x", rotation=45, labelsize=10)
-    for bar in bars:
-        h = bar.get_height()
-        ax2.text(bar.get_x()+bar.get_width()/2, h, str(h), ha="center", va="bottom", fontproperties=font_prop)
+    total = team_cnt.sum()
+    labels = [f"{name} ({count}单)" for name, count in zip(team_cnt.index, team_cnt.values)]
+    fig2, ax2 = plt.subplots(figsize=(11, 4.5))
+    colors = ["#8b5cf6", "#ec4899", "#f43f5e", "#f97316", "#eab308", "#22c55e", "#14b8a6", "#3b82f6"]
+    wedges, texts, autotexts = ax2.pie(team_cnt.values, labels=labels, colors=colors,
+                                        autopct='%1.1f%%', startangle=90, textprops={'fontproperties': font_prop})
+    ax2.axis('equal')
     st.pyplot(fig2)
