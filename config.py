@@ -205,9 +205,22 @@ def _fetch_feishu_sheet(config_key, label):
 
     df = pd.DataFrame(data_rows, columns=headers)
 
-    for col in df.columns:
-        df[col] = df[col].apply(lambda x: _parse_feishu_cell(x))
-        df[col] = df[col].str.strip().str.replace(r"[\n\r]", "", regex=True)
+    # 去重列名：保留第一个，移除重复列（使用索引移除，避免df.drop移除所有同名列）
+    seen = set()
+    duplicate_cols = []
+    for i, col in enumerate(df.columns):
+        if col in seen:
+            duplicate_cols.append(i)
+        else:
+            seen.add(col)
+    if duplicate_cols:
+        print(f"[飞书同步] 发现重复列，将移除索引 {duplicate_cols}: {[df.columns[i] for i in duplicate_cols]}")
+        keep_cols = [i for i in range(len(df.columns)) if i not in duplicate_cols]
+        df = df.iloc[:, keep_cols]
+
+    for i, col in enumerate(df.columns):
+        df.iloc[:, i] = df.iloc[:, i].apply(lambda x: _parse_feishu_cell(x))
+        df.iloc[:, i] = df.iloc[:, i].astype(str).str.strip().str.replace(r"[\n\r]", "", regex=True)
 
     df = df.replace(["nan", "None", "[]"], "")
 

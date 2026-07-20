@@ -8,7 +8,7 @@ import time
 from config import save_data, STATUS_WORKFLOW_MAP, get_workflow_step_text, load_data, fetch_feishu_table
 
 # 模块级变量：后台线程通过这些变量与主线程通信（不能用 st.session_state，因为它是 thread-local 的）
-_sync_config = {"enabled": True, "interval": 10}
+_sync_config = {"enabled": True, "interval": 60}
 _sync_status = {"status": "未启动", "alert": None, "last_sync_time": None}
 _auto_sync_thread = None
 _auto_sync_thread_lock = threading.Lock()
@@ -45,12 +45,12 @@ def auto_sync_worker():
             print(f"[定时同步] 已启用，间隔{interval}分钟，等待下次同步...")
             save_sync_status(f"⏳ 等待中，下次同步将在{interval}分钟后")
 
-            for i in range(interval * 10):
+            for i in range(interval * 60):
                 if not _sync_config.get("enabled", False):
                     print(f"[定时同步] 自动同步已关闭")
                     break
-                remaining = interval * 10 - i
-                if remaining % 10 == 0 or remaining <= 5:
+                remaining = interval * 60 - i
+                if remaining % 60 == 0 or remaining <= 5:
                     save_sync_status(f"⏳ 等待中，剩余{remaining}秒")
                 time.sleep(1)
 
@@ -68,7 +68,8 @@ def auto_sync_worker():
 
                 col_mapping = {
                     "提交时间 Submitted At": "提交时间 Submitted by",
-                    "状态 Status": "状态"
+                    "状态 Status": "状态",
+                    "销售团队 Salesteam": "Salesteam"
                 }
                 sync_df = sync_df.rename(columns=col_mapping)
                 sync_df["团单号"] = sync_df["团单号"].astype(str).str.strip()
@@ -513,7 +514,8 @@ def render_create_order(df):
                 
                 col_mapping = {
                     "提交时间 Submitted At": "提交时间 Submitted by",
-                    "状态 Status": "状态"
+                    "状态 Status": "状态",
+                    "销售团队 Salesteam": "Salesteam"
                 }
                 sync_df = sync_df.rename(columns=col_mapping)
                 
