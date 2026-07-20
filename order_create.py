@@ -83,7 +83,10 @@ def auto_sync_worker():
                 print(f"[定时同步] 完成: 飞书读取{len(sync_df)}条, 完全覆盖本地数据, 时间: {sync_time_str}")
 
             except Exception as err:
+                import traceback
                 print(f"[定时同步] 失败: {str(err)}")
+                print(f"[定时同步] 错误类型: {type(err).__name__}")
+                print(f"[定时同步] 错误堆栈:\n{traceback.format_exc()}")
                 save_sync_status(f"❌ 同步失败，下次同步将在{interval}分钟后",
                                 alert=("error", f"自动同步失败: {str(err)}"))
 

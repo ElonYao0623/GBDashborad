@@ -241,6 +241,14 @@ def _parse_feishu_cell(value):
     return str(value)
 
 
+def _col_num_to_letter(n):
+    """将列号转换为Excel列字母（1->A, 26->Z, 27->AA）"""
+    result = ""
+    while n > 0:
+        n, remainder = divmod(n - 1, 26)
+        result = chr(65 + remainder) + result
+    return result
+
 def _write_feishu_sheet(df, config_key, label):
     """通用飞书表格写入函数"""
     config = load_feishu_config()
@@ -255,6 +263,8 @@ def _write_feishu_sheet(df, config_key, label):
     app_secret = os.environ.get("FEISHU_APP_SECRET") or st_secrets.get("FEISHU_APP_SECRET", "") or config.get("app_secret", "")
     spreadsheet_token = os.environ.get("FEISHU_SPREADSHEET_TOKEN") or st_secrets.get("FEISHU_SPREADSHEET_TOKEN", "") or config.get("spreadsheet_token", "")
     sheet_id = os.environ.get(f"FEISHU_{label.upper()}") or st_secrets.get(f"FEISHU_{label.upper()}", "") or config.get(config_key, "")
+
+    print(f"[飞书写入] 配置检查 - app_id: {repr(app_id[:10]) if app_id else '空'}, app_secret: {'有' if app_secret else '空'}, spreadsheet_token: {repr(spreadsheet_token[:10]) if spreadsheet_token else '空'}, sheet_id: {repr(sheet_id)}")
 
     if not app_id or not app_secret:
         raise Exception("未配置飞书app_id或app_secret！请在Streamlit Secrets或feishu_config.json中配置")
@@ -276,9 +286,10 @@ def _write_feishu_sheet(df, config_key, label):
     print(f"[飞书写入] 准备写入{len(values)-1}条数据，列名: {list(df.columns)}")
     print(f"[飞书写入] 数据预览(前2行): {values[:2]}")
 
+    col_letter = _col_num_to_letter(len(df.columns))
     body = {
         "valueRange": {
-            "range": f"{sheet_id}!A1:{chr(64+len(df.columns))}{len(values)}",
+            "range": f"{sheet_id}!A1:{col_letter}{len(values)}",
             "values": values
         },
         "valueInputOption": "USER_ENTERED"
@@ -291,8 +302,10 @@ def _write_feishu_sheet(df, config_key, label):
     res = resp.json()
     print(f"[飞书写入] HTTP状态码: {resp.status_code}")
     print(f"[飞书写入] 写入表格API响应: {json.dumps(res, ensure_ascii=False)}")
+    print(f"[飞书写入] code类型: {type(res.get('code'))}, code值: {repr(res.get('code'))}")
 
-    if res.get("code") != 0:
+    code = res.get("code")
+    if code is not None and str(code) != "0":
         raise Exception(f"写入表格失败:{res}")
 
     print(f"[飞书写入] 成功写入 {len(df)} 条数据")
