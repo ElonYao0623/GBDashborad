@@ -524,16 +524,34 @@ def render_create_order(df):
                 
                 sync_df["团单号"] = sync_df["团单号"].astype(str).str.strip()
                 
+                # 获取系统中现有的数据
+                current_df = load_data()
+                if not current_df.empty:
+                    current_df["团单号"] = current_df["团单号"].astype(str).str.strip()
+                    # 找出系统中有但飞书没有的团单号
+                    feishu_order_ids = set(sync_df["团单号"].dropna().tolist())
+                    current_order_ids = set(current_df["团单号"].dropna().tolist())
+                    local_only_orders = current_order_ids - feishu_order_ids
+                    
+                    if local_only_orders:
+                        print(f"[自动同步] 删除系统中飞书不存在的团单号: {local_only_orders}")
+                        # 删除这些团单号的数据
+                        sync_df = sync_df[~sync_df["团单号"].isin(local_only_orders)]
+                
                 save_data(sync_df)
                 import pytz
                 beijing_tz = pytz.timezone('Asia/Shanghai')
                 beijing_time = datetime.now(beijing_tz)
                 st.session_state["last_sync_time"] = beijing_time.strftime("%Y-%m-%d %H:%M:%S")
                 sync_time_str = st.session_state["last_sync_time"]
-                print(f"[自动同步] 完成: 飞书读取{len(sync_df)}条, 完全覆盖本地数据")
+                local_only_count = len(local_only_orders) if 'local_only_orders' in locals() else 0
+                print(f"[自动同步] 完成: 飞书读取{len(sync_df)}条, 删除{local_only_count}条本地多余数据")
                 if is_auto:
-                    st.session_state["auto_sync_alert"] = ("success", f"🔄 自动同步完成！读取{len(sync_df)}条数据，同步时间: {sync_time_str}")
-                return len(sync_df), 0, 0
+                    if local_only_count > 0:
+                        st.session_state["auto_sync_alert"] = ("success", f"🔄 自动同步完成！读取{len(sync_df)}条数据，删除{local_only_count}条本地多余数据，同步时间: {sync_time_str}")
+                    else:
+                        st.session_state["auto_sync_alert"] = ("success", f"🔄 自动同步完成！读取{len(sync_df)}条数据，同步时间: {sync_time_str}")
+                return len(sync_df), 0, local_only_count
             except Exception as err:
                 print(f"[自动同步] 失败: {str(err)}")
                 if is_auto:
