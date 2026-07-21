@@ -550,10 +550,11 @@ def render_price_compare(df):
                     label_visibility="collapsed", placeholder=t["col_checkout"]
                 )
 
-            # 初始化 room_df：优先使用 session_state 中的数据
-            if editor_key in st.session_state:
+            # 初始化 room_df：优先使用修改后的中间变量数据
+            modified_key = f"{editor_key}_modified"
+            if modified_key in st.session_state:
                 try:
-                    saved_edited = st.session_state[editor_key]
+                    saved_edited = st.session_state[modified_key]
                     if isinstance(saved_edited, type(group_df)) and not saved_edited.empty:
                         room_df = saved_edited.copy()
                         for col in room_cols:
@@ -624,7 +625,7 @@ def render_price_compare(df):
                 edited["#"] = range(1, len(edited) + 1)
                 if t["col_delete"] not in edited.columns:
                     edited[t["col_delete"]] = False
-                st.session_state[editor_key] = edited.copy()
+                st.session_state[modified_key] = edited.copy()
 
             # 收集该酒店的所有房型行（使用编辑后的酒店信息）
             data_source = edited
