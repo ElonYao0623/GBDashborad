@@ -57,7 +57,10 @@ PAGE_TEXT = {
         "undo_success": "已撤销删除，恢复 {} 条记录",
         "undo_empty": "没有可撤销的删除",
         "add_room_btn": "➕ 添加房型",
-        "add_hotel_btn": "🏨 添加酒店"
+        "add_hotel_btn": "🏨 添加酒店",
+        "sync_from_feishu": "🔄 从飞书更新",
+        "sync_success": "从飞书同步成功！共 {} 条数据",
+        "sync_error": "从飞书同步失败: {}"
     },
     "en": {
         "page_header": "Price Compare",
@@ -102,17 +105,22 @@ PAGE_TEXT = {
         "undo_success": "Undo successful, restored {} records",
         "undo_empty": "No deletion to undo",
         "add_room_btn": "➕ Add Room Type",
-        "add_hotel_btn": "🏨 Add Hotel"
-    }
+        "add_hotel_btn": "🏨 Add Hotel",
+        "sync_from_feishu": "🔄 Sync from Feishu",
+        "sync_success": "Synced from Feishu! {} records",
+        "sync_error": "Sync failed: {}"
+    },
 }
 
 
-def _load_price_data():
+def _load_price_data(t=None):
     """加载已保存的比价数据（优先从飞书读取，云部署持久化）"""
     try:
         feishu_df = fetch_feishu_price_table()
         if not feishu_df.empty:
             print("[比价数据] 从飞书表格加载成功，共{}条数据".format(len(feishu_df)))
+            if t:
+                feishu_df = _normalize_feishu_columns(feishu_df, t)
             return feishu_df.fillna("")
         print("[比价数据] 飞书表格为空，尝试从本地CSV加载")
     except Exception as e:
@@ -120,7 +128,10 @@ def _load_price_data():
     
     if os.path.exists(PRICE_FILE):
         try:
-            return pd.read_csv(PRICE_FILE, encoding="utf-8-sig", dtype=str).fillna("")
+            csv_df = pd.read_csv(PRICE_FILE, encoding="utf-8-sig", dtype=str).fillna("")
+            if t:
+                csv_df = _normalize_feishu_columns(csv_df, t)
+            return csv_df
         except Exception:
             return pd.DataFrame()
     return pd.DataFrame()
@@ -129,6 +140,36 @@ def _load_price_data():
 def _save_price_data(df):
     """保存比价数据"""
     df.to_csv(PRICE_FILE, index=False, encoding="utf-8-sig")
+
+
+def _normalize_feishu_columns(df, t):
+    """规范化飞书表格列名，处理中英文列名映射"""
+    col_variants = {
+        t["col_order"]: ["团单号", "Booking No", "订单号"],
+        t["col_hotel"]: ["酒店名称", "Hotel Name", "酒店"],
+        t["col_star"]: ["星级", "Star Rating", "酒店星级"],
+        t["col_country"]: ["国家", "Country"],
+        t["col_currency"]: ["报价币种", "Currency", "币种"],
+        t["col_room_type"]: ["房型要求", "Room Type", "房型"],
+        t["col_group_rate"]: ["团房组底价", "Group Net Rate", "底价"],
+        t["col_price"]: ["运营报价", "Op Quotation", "报价"],
+    }
+    
+    rename_map = {}
+    for target_col, variants in col_variants.items():
+        for variant in variants:
+            if variant in df.columns and variant not in rename_map:
+                rename_map[variant] = target_col
+                break
+    
+    df = df.rename(columns=rename_map)
+    
+    for col in [t["col_order"], t["col_hotel"], t["col_star"], t["col_country"],
+                t["col_currency"], t["col_room_type"], t["col_group_rate"], t["col_price"]] + PLATFORMS:
+        if col not in df.columns:
+            df[col] = ""
+    
+    return df
 
 
 def _split_hotel_names(name):
@@ -336,6 +377,30 @@ def render_price_compare(df):
     st.markdown(t["page_desc"])
     st.divider()
 
+    # 从飞书更新按钮
+    sync_col, _ = st.columns([1, 3])
+    with sync_col:
+        if st.button(t["sync_from_feishu"], key="sync_from_feishu_btn", use_container_width=True):
+            try:
+                feishu_df = fetch_feishu_price_table()
+                if not feishu_df.empty:
+                    feishu_df = _normalize_feishu_columns(feishu_df, t)
+                    _save_price_data(feishu_df)
+                    
+                    import os as _os_sync
+                    st.session_state["price_df_csv_mtime"] = _os_sync.path.getmtime(PRICE_FILE) if _os_sync.path.exists(PRICE_FILE) else 0
+                    st.session_state["price_df"] = feishu_df.copy()
+                    st.session_state["price_df_editing"] = False
+                    
+                    st.success(t["sync_success"].format(len(feishu_df)))
+                    print(f"[比价同步] 从飞书更新成功，共{len(feishu_df)}条数据")
+                else:
+                    st.info(t["empty_tip"])
+            except Exception as e:
+                st.error(t["sync_error"].format(str(e)))
+                print(f"[比价同步] 从飞书更新失败: {str(e)}")
+            st.rerun()
+
     # 加载主数据的酒店信息
     hotel_info = _load_hotel_info(df)
     if hotel_info.empty or hotel_info.columns.empty:
@@ -361,8 +426,8 @@ def render_price_compare(df):
             col_map[c] = t["col_order"]
     hotel_info = hotel_info.rename(columns=col_map)
 
-    # 加载已保存的比价数据并合并
-    existing = _load_price_data()
+    # 加载已保存的比价数据并合并（传递t用于列名规范化）
+    existing = _load_price_data(t)
     merged = _merge_with_existing(existing, hotel_info, t)
 
     if merged.empty:
