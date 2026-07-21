@@ -377,6 +377,10 @@ def render_price_compare(df):
             merged[c] = ""
     merged = merged[all_cols]
 
+    # 过滤空白酒店名称的数据
+    merged = merged[merged[t["col_hotel"]].astype(str).str.strip() != ""]
+    merged = merged[~merged[t["col_hotel"]].isna()]
+    
     # 用 session_state 维护表格数据
     # 优先使用 session_state 中的数据（云部署时已同步到飞书）
     # 只有当 session_state 中没有数据时，才从飞书/CSV 加载
@@ -446,7 +450,6 @@ def render_price_compare(df):
     # 收集重建数据 & 标记是否需要 rerun
     rebuilt_rows = []
     need_rerun = False
-    trigger_save = False
 
     for i, (order_id, hotel_name) in enumerate(group_keys):
         mask = (price_df[t["col_hotel"]].astype(str).str.strip() == hotel_name) & \
@@ -532,16 +535,11 @@ def render_price_compare(df):
                 key=editor_key
             )
 
-            # 添加房型 + 保存按钮
-            btn_col1, btn_col2, _ = st.columns([1, 1, 2])
-            with btn_col1:
-                add_room = st.form_submit_button(t["add_room_btn"], use_container_width=True)
-            with btn_col2:
-                submit_save = st.form_submit_button(t["save_btn"], type="primary", use_container_width=True)
+            # 添加房型按钮（表单需要一个submit按钮）
+            add_room = st.form_submit_button(t["add_room_btn"], use_container_width=True)
 
-            # 提交后的处理
-            if add_room or submit_save:
-                # 重新计算序号
+            # 添加房型后的处理
+            if add_room:
                 edited["#"] = range(1, len(edited) + 1)
 
                 # 检测删除
@@ -556,47 +554,28 @@ def render_price_compare(df):
                     delete_triggered = True
 
                 # 添加房型
-                if add_room:
-                    new_row = pd.DataFrame([{
-                        t["col_room_type"]: "",
-                        t["col_group_rate"]: 0,
-                        t["col_price"]: 0,
-                        **{p: 0 for p in PLATFORMS}
-                    }])
-                    edited = pd.concat([edited.drop(columns=["#", t["col_delete"]]), new_row], ignore_index=True)
-                    need_rerun = True
+                new_row = pd.DataFrame([{
+                    t["col_room_type"]: "",
+                    t["col_group_rate"]: 0,
+                    t["col_price"]: 0,
+                    **{p: 0 for p in PLATFORMS}
+                }])
+                edited = pd.concat([edited.drop(columns=["#", t["col_delete"]]), new_row], ignore_index=True)
+                need_rerun = True
 
-                # 标记保存
-                if submit_save:
-                    trigger_save = True
-
-                # 收集该酒店的所有房型行（使用编辑后的酒店信息）
-                for _, row in edited.iterrows():
-                    rebuilt_rows.append({
-                        t["col_order"]: order_id,
-                        t["col_hotel"]: edited_hotel.strip(),
-                        t["col_star"]: edited_star.strip(),
-                        t["col_country"]: edited_country.strip(),
-                        t["col_currency"]: edited_currency.strip(),
-                        t["col_room_type"]: row.get(t["col_room_type"], ""),
-                        t["col_group_rate"]: row.get(t["col_group_rate"], 0),
-                        t["col_price"]: row.get(t["col_price"], 0),
-                        **{p: row.get(p, 0) for p in PLATFORMS}
-                    })
-            else:
-                # 未提交时，收集原始数据
-                for _, row in room_df.iterrows():
-                    rebuilt_rows.append({
-                        t["col_order"]: order_id,
-                        t["col_hotel"]: hotel_name,
-                        t["col_star"]: star,
-                        t["col_country"]: country,
-                        t["col_currency"]: currency,
-                        t["col_room_type"]: row.get(t["col_room_type"], ""),
-                        t["col_group_rate"]: row.get(t["col_group_rate"], 0),
-                        t["col_price"]: row.get(t["col_price"], 0),
-                        **{p: row.get(p, 0) for p in PLATFORMS}
-                    })
+            # 收集该酒店的所有房型行（使用编辑后的酒店信息）
+            for _, row in edited.iterrows():
+                rebuilt_rows.append({
+                    t["col_order"]: order_id,
+                    t["col_hotel"]: edited_hotel.strip(),
+                    t["col_star"]: edited_star.strip(),
+                    t["col_country"]: edited_country.strip(),
+                    t["col_currency"]: edited_currency.strip(),
+                    t["col_room_type"]: row.get(t["col_room_type"], ""),
+                    t["col_group_rate"]: row.get(t["col_group_rate"], 0),
+                    t["col_price"]: row.get(t["col_price"], 0),
+                    **{p: row.get(p, 0) for p in PLATFORMS}
+                })
 
     # 重建 price_df：合并未筛选展示的酒店（保持原数据）与当前展示的酒店（含编辑）
     base_cols = [t["col_order"], t["col_hotel"], t["col_star"], t["col_country"], t["col_currency"], t["col_room_type"], t["col_group_rate"], t["col_price"]] + PLATFORMS
@@ -635,29 +614,89 @@ def render_price_compare(df):
     if need_rerun:
         st.rerun()
 
-    # 保存（由酒店区块内的保存按钮触发）
-    if trigger_save:
-        try:
-            _save_price_data(new_price_df)
-            # 同步 mtime，避免下次 rerun 时误判 CSV 变化而重置编辑中的数据
-            import os as _os2
-            st.session_state["price_df_csv_mtime"] = _os2.path.getmtime(PRICE_FILE) if _os2.path.exists(PRICE_FILE) else 0
+    # 全局保存按钮
+    save_col, _ = st.columns([1, 3])
+    with save_col:
+        if st.button(t["save_btn"], key="global_save_btn", type="primary", use_container_width=True):
+            save_rebuilt_rows = []
+            delete_happened = False
             
-            # 同步到飞书表格（云部署持久化）
-            fs_config = load_feishu_config()
-            if fs_config.get("price_sheet_id"):
-                try:
-                    write_feishu_price_table(new_price_df)
-                    st.success(f"{t['save_success'].format(len(new_price_df))}（已同步到飞书比价表格）")
-                    print(f"[比价同步] 成功同步{len(new_price_df)}条数据到飞书表格")
-                except Exception as fs_err:
-                    st.warning(f"{t['save_success'].format(len(new_price_df))}（飞书同步失败: {str(fs_err)}）")
-                    print(f"[比价同步] 飞书同步失败: {str(fs_err)}")
+            for i, (order_id, hotel_name) in enumerate(group_keys):
+                editor_key = f"hotel_editor_{i}_{order_id}_{hotel_name}"
+                
+                edited_hotel = st.session_state.get(f"hotel_name_{i}_{order_id}_{hotel_name}", hotel_name)
+                edited_star = st.session_state.get(f"hotel_star_{i}_{order_id}_{hotel_name}", "")
+                edited_country = st.session_state.get(f"hotel_country_{i}_{order_id}_{hotel_name}", "")
+                edited_currency = st.session_state.get(f"hotel_currency_{i}_{order_id}_{hotel_name}", "")
+                
+                if editor_key in st.session_state:
+                    try:
+                        saved_edited = st.session_state[editor_key]
+                        if not saved_edited.empty:
+                            room_cols = [t["col_room_type"], t["col_group_rate"], t["col_price"]] + PLATFORMS
+                            for col in room_cols:
+                                if col not in saved_edited.columns:
+                                    saved_edited[col] = ""
+                            
+                            if t["col_delete"] in saved_edited.columns and saved_edited[t["col_delete"]].any():
+                                if not delete_happened:
+                                    st.session_state["price_df_backup"] = st.session_state["price_df"].copy()
+                                delete_happened = True
+                                saved_edited = saved_edited[~saved_edited[t["col_delete"]]].reset_index(drop=True)
+                            
+                            for _, row in saved_edited.iterrows():
+                                save_rebuilt_rows.append({
+                                    t["col_order"]: order_id,
+                                    t["col_hotel"]: edited_hotel.strip(),
+                                    t["col_star"]: edited_star.strip(),
+                                    t["col_country"]: edited_country.strip(),
+                                    t["col_currency"]: edited_currency.strip(),
+                                    t["col_room_type"]: row.get(t["col_room_type"], ""),
+                                    t["col_group_rate"]: row.get(t["col_group_rate"], 0),
+                                    t["col_price"]: row.get(t["col_price"], 0),
+                                    **{p: row.get(p, 0) for p in PLATFORMS}
+                                })
+                    except Exception:
+                        pass
+            
+            if save_rebuilt_rows:
+                save_rebuilt_df = pd.DataFrame(save_rebuilt_rows)
+                for c in base_cols:
+                    if c not in save_rebuilt_df.columns:
+                        save_rebuilt_df[c] = ""
+                save_rebuilt_df = save_rebuilt_df[base_cols]
             else:
-                st.success(t["save_success"].format(len(new_price_df)))
-                print(f"[比价同步] 未配置飞书比价表格，仅保存到本地CSV")
-        except Exception as e:
-            st.error(t["save_error"].format(str(e)))
+                save_rebuilt_df = pd.DataFrame(columns=base_cols)
+            
+            if delete_happened:
+                st.session_state["_clear_filters"] = True
+            
+            save_unfiltered_df = unfiltered_df.copy()
+            final_save_df = pd.concat([save_unfiltered_df, save_rebuilt_df], ignore_index=True)
+            
+            try:
+                _save_price_data(final_save_df)
+                import os as _os2
+                st.session_state["price_df_csv_mtime"] = _os2.path.getmtime(PRICE_FILE) if _os2.path.exists(PRICE_FILE) else 0
+                st.session_state["price_df"] = final_save_df.copy()
+                
+                fs_config = load_feishu_config()
+                if fs_config.get("price_sheet_id"):
+                    try:
+                        write_feishu_price_table(final_save_df)
+                        st.success(f"{t['save_success'].format(len(final_save_df))}（已同步到飞书比价表格）")
+                        print(f"[比价同步] 成功同步{len(final_save_df)}条数据到飞书表格")
+                    except Exception as fs_err:
+                        st.warning(f"{t['save_success'].format(len(final_save_df))}（飞书同步失败: {str(fs_err)}）")
+                        print(f"[比价同步] 飞书同步失败: {str(fs_err)}")
+                else:
+                    st.success(t["save_success"].format(len(final_save_df)))
+                    print(f"[比价同步] 未配置飞书比价表格，仅保存到本地CSV")
+                
+                if delete_happened:
+                    st.rerun()
+            except Exception as e:
+                st.error(t["save_error"].format(str(e)))
 
     # 添加酒店按钮
     add_hotel_col, _ = st.columns([1, 3])
