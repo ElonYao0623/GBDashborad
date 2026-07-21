@@ -58,6 +58,7 @@ PAGE_TEXT = {
         "undo_success": "已撤销删除，恢复 {} 条记录",
         "undo_empty": "没有可撤销的删除",
         "add_room_btn": "➕ 添加房型",
+        "delete_room_btn": "🗑️ 删除房型",
         "add_hotel_btn": "🏨 添加酒店",
         "sync_from_feishu": "🔄 从飞书更新",
         "sync_success": "从飞书同步成功！共 {} 条数据",
@@ -107,6 +108,7 @@ PAGE_TEXT = {
         "undo_success": "Undo successful, restored {} records",
         "undo_empty": "No deletion to undo",
         "add_room_btn": "➕ Add Room Type",
+        "delete_room_btn": "🗑️ Delete Room Type",
         "add_hotel_btn": "🏨 Add Hotel",
         "sync_from_feishu": "🔄 Sync from Feishu",
         "sync_success": "Synced from Feishu! {} records",
@@ -589,23 +591,25 @@ def render_price_compare(df):
                 key=editor_key
             )
 
-            # 添加房型按钮（表单需要一个submit按钮）
-            add_room = st.form_submit_button(t["add_room_btn"], use_container_width=True)
+            # 添加房型和删除房型按钮（独立分开）
+            btn_col1, btn_col2 = st.columns(2)
+            with btn_col1:
+                add_room = st.form_submit_button(t["add_room_btn"], use_container_width=True)
+            with btn_col2:
+                delete_room = st.form_submit_button(t["delete_room_btn"], use_container_width=True)
 
-            # 检测删除（无论是否添加房型，只要勾选了删除就执行）
-            delete_triggered = False
-            if t["col_delete"] in edited.columns and edited[t["col_delete"]].any():
-                if not need_rerun:
-                    st.session_state["price_df_backup"] = st.session_state["price_df"].copy()
-                keep_mask = ~edited[t["col_delete"]]
-                edited = edited[keep_mask].reset_index(drop=True)
-                st.session_state["_clear_filters"] = True
-                need_rerun = True
-                delete_triggered = True
+            # 删除房型处理
+            if delete_room:
+                if t["col_delete"] in edited.columns and edited[t["col_delete"]].any():
+                    if not need_rerun:
+                        st.session_state["price_df_backup"] = st.session_state["price_df"].copy()
+                    keep_mask = ~edited[t["col_delete"]]
+                    edited = edited[keep_mask].reset_index(drop=True)
+                    st.session_state["_clear_filters"] = True
+                    need_rerun = True
 
-            # 添加房型后的处理
+            # 添加房型处理
             if add_room:
-                # 添加房型
                 new_row = pd.DataFrame([{
                     t["col_room_type"]: "",
                     t["col_group_rate"]: 0,
@@ -615,11 +619,15 @@ def render_price_compare(df):
                 edited = pd.concat([edited.drop(columns=["#", t["col_delete"]], errors="ignore"), new_row], ignore_index=True)
                 need_rerun = True
 
+            # 更新 session_state 中的数据，确保删除和添加后的数据被保存
+            if delete_room or add_room:
+                edited["#"] = range(1, len(edited) + 1)
+                if t["col_delete"] not in edited.columns:
+                    edited[t["col_delete"]] = False
+                st.session_state[editor_key] = edited.copy()
+
             # 收集该酒店的所有房型行（使用编辑后的酒店信息）
-            # 优先使用 session_state 中的数据，确保点击全局保存时能获取最新编辑
-            data_source = st.session_state.get(editor_key, edited)
-            if data_source is None or not isinstance(data_source, type(edited)) or data_source.empty:
-                data_source = edited
+            data_source = edited
             
             # 从 session_state 获取 text_input 的值（用户可能编辑了但没提交表单）
             saved_hotel = st.session_state.get(f"hotel_name_{i}_{hotel_name}", edited_hotel)
