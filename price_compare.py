@@ -151,8 +151,8 @@ def _normalize_feishu_columns(df, t):
         t["col_star"]: ["星级", "Star Rating", "酒店星级"],
         t["col_country"]: ["国家", "Country"],
         t["col_currency"]: ["报价币种", "Currency", "币种"],
-        t["col_checkin"]: ["入住日期", "Check In", "Check-in", "入住"],
-        t["col_checkout"]: ["退房日期", "Check Out", "Check-out", "退房"],
+        t["col_checkin"]: ["入住日期 Check-in Date", "入住日期", "Check In", "Check-in", "入住"],
+        t["col_checkout"]: ["离店日期 Check-out Date", "退房日期", "离店日期", "Check Out", "Check-out", "退房"],
         t["col_room_type"]: ["房型要求", "Room Type", "房型"],
         t["col_group_rate"]: ["团房组底价", "Group Net Rate", "底价"],
         t["col_price"]: ["运营报价", "Op Quotation", "报价"],
@@ -199,8 +199,8 @@ def _load_hotel_info(df):
     currency_col = _find_col(["报价币种 Currency", "报价币种", "Currency"])
     room_col = _find_col(["房型要求 Room Type", "房型要求", "Room Type"])
     star_col = _find_col(["酒店星级 Star Rating", "酒店星级", "Star Rating"])
-    checkin_col = _find_col(["入住日期 Check-in", "入住日期", "Check-in", "Check in"])
-    checkout_col = _find_col(["退房日期 Check-out", "退房日期", "Check-out", "Check out"])
+    checkin_col = _find_col(["入住日期 Check-in Date", "入住日期 Check-in", "入住日期", "Check-in", "Check in"])
+    checkout_col = _find_col(["离店日期 Check-out Date", "退房日期 Check-out", "离店日期", "退房日期", "Check-out", "Check out"])
 
     if not hotel_col:
         return pd.DataFrame()
@@ -401,9 +401,9 @@ def render_price_compare(df):
             col_map[c] = t["col_room_type"]
         elif c in ["酒店星级 Star Rating", "酒店星级", "Star Rating"]:
             col_map[c] = t["col_star"]
-        elif c in ["入住日期", "Check In", "Check-in"]:
+        elif c in ["入住日期 Check-in Date", "入住日期", "Check In", "Check-in"]:
             col_map[c] = t["col_checkin"]
-        elif c in ["退房日期", "Check Out", "Check-out"]:
+        elif c in ["离店日期 Check-out Date", "退房日期", "离店日期", "Check Out", "Check-out"]:
             col_map[c] = t["col_checkout"]
     hotel_info = hotel_info.rename(columns=col_map)
 
@@ -592,21 +592,19 @@ def render_price_compare(df):
             # 添加房型按钮（表单需要一个submit按钮）
             add_room = st.form_submit_button(t["add_room_btn"], use_container_width=True)
 
+            # 检测删除（无论是否添加房型，只要勾选了删除就执行）
+            delete_triggered = False
+            if t["col_delete"] in edited.columns and edited[t["col_delete"]].any():
+                if not need_rerun:
+                    st.session_state["price_df_backup"] = st.session_state["price_df"].copy()
+                keep_mask = ~edited[t["col_delete"]]
+                edited = edited[keep_mask].reset_index(drop=True)
+                st.session_state["_clear_filters"] = True
+                need_rerun = True
+                delete_triggered = True
+
             # 添加房型后的处理
             if add_room:
-                edited["#"] = range(1, len(edited) + 1)
-
-                # 检测删除
-                delete_triggered = False
-                if t["col_delete"] in edited.columns and edited[t["col_delete"]].any():
-                    if not need_rerun:
-                        st.session_state["price_df_backup"] = st.session_state["price_df"].copy()
-                    keep_mask = ~edited[t["col_delete"]]
-                    edited = edited[keep_mask].reset_index(drop=True)
-                    st.session_state["_clear_filters"] = True
-                    need_rerun = True
-                    delete_triggered = True
-
                 # 添加房型
                 new_row = pd.DataFrame([{
                     t["col_room_type"]: "",
@@ -614,7 +612,7 @@ def render_price_compare(df):
                     t["col_price"]: 0,
                     **{p: 0 for p in PLATFORMS}
                 }])
-                edited = pd.concat([edited.drop(columns=["#", t["col_delete"]]), new_row], ignore_index=True)
+                edited = pd.concat([edited.drop(columns=["#", t["col_delete"]], errors="ignore"), new_row], ignore_index=True)
                 need_rerun = True
 
             # 收集该酒店的所有房型行（使用编辑后的酒店信息）
