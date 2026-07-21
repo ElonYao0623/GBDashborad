@@ -552,7 +552,7 @@ def render_price_compare(df):
             if editor_key in st.session_state:
                 try:
                     saved_edited = st.session_state[editor_key]
-                    if not saved_edited.empty:
+                    if isinstance(saved_edited, pd.DataFrame) and not saved_edited.empty:
                         room_df = saved_edited.copy()
                         for col in room_cols:
                             if col not in room_df.columns:
@@ -620,7 +620,7 @@ def render_price_compare(df):
             # 收集该酒店的所有房型行（使用编辑后的酒店信息）
             # 优先使用 session_state 中的数据，确保点击全局保存时能获取最新编辑
             data_source = st.session_state.get(editor_key, edited)
-            if data_source is None or data_source.empty:
+            if data_source is None or not isinstance(data_source, pd.DataFrame) or data_source.empty:
                 data_source = edited
             
             # 从 session_state 获取 text_input 的值（用户可能编辑了但没提交表单）
