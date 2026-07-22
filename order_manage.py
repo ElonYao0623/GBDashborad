@@ -3,7 +3,7 @@ import pandas as pd
 from io import BytesIO
 from config import load_data, save_data, STATUS_WORKFLOW_MAP, get_workflow_step_text, get_standard_status
 
-def render_order_manage(df):
+def render_order_manage(df, user_team=None):
     lang = st.session_state["lang"]
     # ===================== 1. 统一标准字段模板（全局唯一，一字不差） =====================
     std_all_cols = [
@@ -63,6 +63,10 @@ def render_order_manage(df):
 
     st.session_state["order_full_df"] = fresh_df.copy()
     full_df = st.session_state["order_full_df"]
+    
+    if user_team:
+        full_df = full_df[full_df["Salesteam"].str.contains(user_team, case=False, na=False)]
+    
     all_status_list = list(STATUS_WORKFLOW_MAP.keys())
 
     # ===================== 3. 修复safe_str，彻底清除隐形空白字符 =====================
@@ -78,7 +82,6 @@ def render_order_manage(df):
     # 1:1映射，页面输入框名称 = CSV真实列名，无任何转换
     field_map = {col: col for col in std_all_cols}
 
-    # 取值增强：打印缺失字段调试，不存在直接返回空
     def get_val(long_key):
         if long_key not in field_map:
             return ""
@@ -194,9 +197,11 @@ def render_order_manage(df):
                     with c4:
                         hotel_name = st.text_input("酒店名称 Hotel Name", value=get_val("酒店名称 Hotel Name"))
                         star_rating = st.text_input("酒店星级 Star Rating", value=get_val("酒店星级 Star Rating"))
-                        checkin_date = st.text_input("入住日期 Check-in Date", value=get_val("入住日期 Check-in Date"))
+                        checkin_val = get_val("入住日期 Check-in Date")
+                        checkin_date = st.date_input("入住日期 Check-in Date", value=pd.to_datetime(checkin_val).date() if checkin_val and checkin_val.lower() != "nan" else None)
                     with c5:
-                        checkout_date = st.text_input("离店日期 Check-out Date", value=get_val("离店日期 Check-out Date"))
+                        checkout_val = get_val("离店日期 Check-out Date")
+                        checkout_date = st.date_input("离店日期 Check-out Date", value=pd.to_datetime(checkout_val).date() if checkout_val and checkout_val.lower() != "nan" else None)
                         room_type = st.text_input("房型要求 Room Type", value=get_val("房型要求 Room Type"))
                         room_total = st.text_input("房间总数 Total Rooms", value=get_val("房间总数 Total Rooms"))
                     with c6:

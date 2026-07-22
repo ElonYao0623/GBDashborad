@@ -5,46 +5,51 @@ import streamlit as st
 
 PRICE_FILE = "price_compare.csv"
 MAIN_FILE = "团房数据.csv"
-PLATFORMS = ["Booking.com", "Expedia", "Trip.com", "Agoda", "Traveloka"]
 
 PAGE_TEXT = {
     "zh": {
         "page_header": "比价数据展示",
         "page_desc": "所有酒店的比价数据（按房型维度展示）",
         "empty_tip": "暂无比价数据",
-        "col_order": "团单号",
         "col_hotel": "酒店名称",
-        "col_star": "酒店星级",
+        "col_star": "星级",
         "col_country": "国家",
+        "col_city": "城市",
         "col_currency": "报价币种",
-        "col_room_type": "房型",
+        "col_checkin": "Check in",
+        "col_checkout": "Check out",
+        "col_room_type": "房型要求",
         "col_group_rate": "团房组底价",
         "col_price": "运营报价",
         "col_lowest": "最低报价",
-        "compare_vs_base": "比价信息（相对团房组底价差值%）",
-        "filter_order_id": "团单号",
         "filter_hotel": "酒店名称",
         "filter_country": "国家",
+        "filter_city": "城市",
         "filter_room_type": "房型",
+        "filter_checkin": "入住日期",
+        "filter_checkout": "离店日期",
     },
     "en": {
         "page_header": "Price Comparison Dashboard",
         "page_desc": "All hotel price comparison data (by room type)",
         "empty_tip": "No price data available",
-        "col_order": "Booking No",
-        "col_hotel": "Hotel Name",
-        "col_star": "Star Rating",
-        "col_country": "Country",
-        "col_currency": "Currency",
-        "col_room_type": "Room Type",
-        "col_group_rate": "Group Net Rate",
-        "col_price": "Op Quotation",
+        "col_hotel": "酒店名称",
+        "col_star": "星级",
+        "col_country": "国家",
+        "col_city": "城市",
+        "col_currency": "报价币种",
+        "col_checkin": "Check in",
+        "col_checkout": "Check out",
+        "col_room_type": "房型要求",
+        "col_group_rate": "团房组底价",
+        "col_price": "运营报价",
         "col_lowest": "Lowest Quote",
-        "compare_vs_base": "Comparison (vs Group Net Rate %)",
-        "filter_order_id": "Booking No",
         "filter_hotel": "Hotel Name",
         "filter_country": "Country",
+        "filter_city": "City",
         "filter_room_type": "Room Type",
+        "filter_checkin": "Check-in Date",
+        "filter_checkout": "Check-out Date",
     },
 }
 
@@ -59,13 +64,14 @@ def _to_num(val):
         return None
 
 
-def _find_lowest(row, t):
+def _find_lowest(row, platforms):
     """找出最低报价（仅各平台，不含底价和运营报价）"""
-    candidates = [(p, _to_num(row.get(p, ""))) for p in PLATFORMS]
+    candidates = [(p, _to_num(row.get(p, ""))) for p in platforms]
     valid = [(name, v) for name, v in candidates if v is not None and v > 0]
     if not valid:
         return None, None
     return min(valid, key=lambda x: x[1])
+
 
 def _calc_pct_diff(val, base):
     """计算与底价的百分比差异"""
@@ -75,7 +81,7 @@ def _calc_pct_diff(val, base):
 
 
 def _load_price_data():
-    """加载比价数据，优先使用 session_state（编辑中的数据），回退到 CSV"""
+    """加载比价数据"""
     try:
         if "price_df" in st.session_state and st.session_state.get("price_df_editing", False):
             return st.session_state["price_df"].copy().fillna("")
@@ -88,97 +94,6 @@ def _load_price_data():
         except Exception:
             return pd.DataFrame()
     return pd.DataFrame()
-
-
-def _load_main_data():
-    """加载主数据用于回填团单号和星级"""
-    if os.path.exists(MAIN_FILE):
-        try:
-            return pd.read_csv(MAIN_FILE, encoding="utf-8-sig", dtype=str).fillna("")
-        except Exception:
-            return pd.DataFrame()
-    return pd.DataFrame()
-
-
-def _backfill_from_main(price_df, t):
-    """从主数据回填团单号和酒店星级（支持同名酒店不同团单号）"""
-    main_df = _load_main_data()
-    if main_df.empty:
-        return price_df
-
-    # 查找主数据中的列
-    hotel_col = None
-    for c in ["酒店名称 Hotel Name", "酒店名称", "Hotel Name"]:
-        if c in main_df.columns:
-            hotel_col = c
-            break
-    star_col = None
-    for c in ["酒店星级 Star Rating", "酒店星级", "Star Rating"]:
-        if c in main_df.columns:
-            star_col = c
-            break
-    order_col = None
-    for c in ["团单号"]:
-        if c in main_df.columns:
-            order_col = c
-            break
-
-    if not hotel_col:
-        return price_df
-
-    # 按酒店名分组，保留所有 (团单号, 星级) 组合
-    hotel_entries = {}
-    for _, row in main_df.iterrows():
-        hn = str(row.get(hotel_col, "")).strip()
-        if not hn or hn.lower() == "nan":
-            continue
-        ov = str(row.get(order_col, "")).strip() if order_col else ""
-        sv = str(row.get(star_col, "")).strip() if star_col else ""
-        ov = ov if ov and ov.lower() != "nan" else ""
-        sv = sv if sv and sv.lower() != "nan" else ""
-        if hn not in hotel_entries:
-            hotel_entries[hn] = []
-        # 去重添加
-        entry = (ov, sv)
-        if entry not in hotel_entries[hn]:
-            hotel_entries[hn].append(entry)
-
-    # 为比价数据每行匹配团单号和星级
-    # 用游标跟踪每个酒店名已分配的条目索引
-    hotel_cursor = {}
-    for idx, row in price_df.iterrows():
-        hn = str(row.get(t["col_hotel"], "")).strip()
-        if hn not in hotel_entries or not hotel_entries[hn]:
-            continue
-
-        entries = hotel_entries[hn]
-        cur_order = str(row.get(t["col_order"], "")).strip()
-        cur_star = str(row.get(t["col_star"], "")).strip()
-
-        # 如果已有团单号，尝试匹配对应条目
-        matched = None
-        if cur_order and cur_order.lower() != "nan":
-            for e in entries:
-                if e[0] == cur_order:
-                    matched = e
-                    break
-
-        if matched is None:
-            # 按游标顺序取下一个未分配的条目
-            cursor = hotel_cursor.get(hn, 0)
-            if cursor < len(entries):
-                matched = entries[cursor]
-                hotel_cursor[hn] = cursor + 1
-            else:
-                matched = entries[0]  # 回退到第一个
-
-        # 回填空缺字段
-        if (not cur_order or cur_order.lower() == "nan") and matched[0]:
-            price_df.at[idx, t["col_order"]] = matched[0]
-        if (not cur_star or cur_star.lower() == "nan") and matched[1]:
-            price_df.at[idx, t["col_star"]] = matched[1]
-
-    return price_df
 
 
 def render_price_compare_dashboard():
@@ -207,58 +122,111 @@ def render_price_compare_dashboard():
         st.warning(t["empty_tip"])
         return
 
-    # 列重映射（兼容旧数据可能缺失的列）
-    # 处理房型列名差异：CSV中是"房型要求"，但页面显示用"房型"
-    room_type_col_in_csv = None
-    for c in ["房型要求", "房型要求 Room Type", "Room Type", t["col_room_type"]]:
-        if c in price_df.columns:
-            room_type_col_in_csv = c
-            break
-    if room_type_col_in_csv and room_type_col_in_csv != t["col_room_type"]:
-        price_df = price_df.rename(columns={room_type_col_in_csv: t["col_room_type"]})
+    base_cols = [
+        t["col_hotel"], t["col_star"], t["col_country"], t["col_city"],
+        t["col_currency"], t["col_checkin"], t["col_checkout"],
+        t["col_room_type"], t["col_group_rate"], t["col_price"]
+    ]
     
-    for col in [t["col_order"], t["col_hotel"], t["col_star"], t["col_country"],
-                t["col_currency"], t["col_room_type"], t["col_group_rate"], t["col_price"]] + PLATFORMS:
-        if col not in price_df.columns:
-            price_df[col] = ""
+    all_platforms = []
+    for col in price_df.columns:
+        if col not in base_cols:
+            all_platforms.append(col)
+    
+    for key in base_cols:
+        if key not in price_df.columns:
+            price_df[key] = ""
 
-    # 从主数据回填团单号和酒店星级
-    price_df = _backfill_from_main(price_df, t)
+    price_df = price_df[price_df[t["col_hotel"]].astype(str).str.strip() != ""]
+    price_df = price_df[~price_df[t["col_hotel"]].isna()]
+    if price_df.empty:
+        st.warning(t["empty_tip"])
+        return
 
-    # 筛选器
-    f_col1, f_col2, f_col3, f_col4 = st.columns(4)
+    f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns(6)
     with f_col1:
-        sel_order = st.text_input(t["filter_order_id"], key="dash_filter_order")
-    with f_col2:
         sel_hotel = st.text_input(t["filter_hotel"], key="dash_filter_hotel")
-    with f_col3:
+    with f_col2:
         sel_country = st.text_input(t["filter_country"], key="dash_filter_country")
+    with f_col3:
+        sel_city = st.text_input(t["filter_city"], key="dash_filter_city")
     with f_col4:
         sel_room_type = st.text_input(t["filter_room_type"], key="dash_filter_room_type")
+    with f_col5:
+        sel_checkin = st.date_input(t["filter_checkin"], key="dash_filter_checkin", value=None)
+    with f_col6:
+        sel_checkout = st.date_input(t["filter_checkout"], key="dash_filter_checkout", value=None)
 
     filtered_df = price_df.copy()
-    if sel_order.strip():
-        filtered_df = filtered_df[filtered_df[t["col_order"]].astype(str).str.contains(sel_order.strip(), case=False, na=False)]
     if sel_hotel.strip():
         filtered_df = filtered_df[filtered_df[t["col_hotel"]].astype(str).str.contains(sel_hotel.strip(), case=False, na=False)]
     if sel_country.strip():
         filtered_df = filtered_df[filtered_df[t["col_country"]].astype(str).str.contains(sel_country.strip(), case=False, na=False)]
+    if sel_city.strip():
+        filtered_df = filtered_df[filtered_df[t["col_city"]].astype(str).str.contains(sel_city.strip(), case=False, na=False)]
     if sel_room_type.strip():
         filtered_df = filtered_df[filtered_df[t["col_room_type"]].astype(str).str.contains(sel_room_type.strip(), case=False, na=False)]
+    
+    if sel_checkin:
+        sel_month = sel_checkin.month
+        sel_day = sel_checkin.day
+        drop_indices = []
+        for idx, row in filtered_df.iterrows():
+            checkin_val = str(row.get(t["col_checkin"], "")).strip()
+            try:
+                if "/" in checkin_val:
+                    parts = checkin_val.split("/")
+                    if len(parts) == 2:
+                        month = int(parts[0])
+                        day = int(parts[1])
+                        if month < sel_month or (month == sel_month and day < sel_day):
+                            drop_indices.append(idx)
+                elif "-" in checkin_val:
+                    parts = checkin_val.split("-")
+                    if len(parts) == 3:
+                        month = int(parts[1])
+                        day = int(parts[2])
+                        if month < sel_month or (month == sel_month and day < sel_day):
+                            drop_indices.append(idx)
+            except (ValueError, IndexError):
+                pass
+        filtered_df = filtered_df.drop(drop_indices)
+    
+    if sel_checkout:
+        sel_month = sel_checkout.month
+        sel_day = sel_checkout.day
+        drop_indices = []
+        for idx, row in filtered_df.iterrows():
+            checkout_val = str(row.get(t["col_checkout"], "")).strip()
+            try:
+                if "/" in checkout_val:
+                    parts = checkout_val.split("/")
+                    if len(parts) == 2:
+                        month = int(parts[0])
+                        day = int(parts[1])
+                        if month > sel_month or (month == sel_month and day > sel_day):
+                            drop_indices.append(idx)
+                elif "-" in checkout_val:
+                    parts = checkout_val.split("-")
+                    if len(parts) == 3:
+                        month = int(parts[1])
+                        day = int(parts[2])
+                        if month > sel_month or (month == sel_month and day > sel_day):
+                            drop_indices.append(idx)
+            except (ValueError, IndexError):
+                pass
+        filtered_df = filtered_df.drop(drop_indices)
 
     if filtered_df.empty:
         st.warning(t["empty_tip"])
         return
 
-    # 按酒店名称分组
     hotel_groups = filtered_df.groupby(t["col_hotel"], sort=False)
 
-    # 统计信息
     total_hotels = len(hotel_groups)
     total_room_types = len(filtered_df)
-    st.info(f"共 {total_hotels} 家酒店，{total_room_types} 种房型")
+    st.info(f"{'共' if lang == 'zh' else 'Total'} {total_hotels} {'家酒店' if lang == 'zh' else 'hotels'}, {total_room_types} {'种房型' if lang == 'zh' else 'room types'}")
 
-    # 按酒店分组渲染
     for hotel_name, group_df in hotel_groups:
         group_df = group_df.reset_index(drop=True)
         hotel_info = group_df.iloc[0]
@@ -270,33 +238,32 @@ def render_price_compare_dashboard():
             v = _to_num(r.get(t["col_price"], ""))
             if v is not None and v > 0:
                 op_prices.append(v)
-        op_price_display = f" | **运营报价: {currency} {min(op_prices):.2f}**" if op_prices else ""
+        op_price_display = f" | **{t['col_price']}: {currency} {min(op_prices):.2f}**" if op_prices else ""
         
-        with st.expander(f"🏨 {hotel_name} ({len(group_df)}种房型){op_price_display}", expanded=False):
-            st.markdown(f"**{t['col_star']}**: {hotel_info.get(t['col_star'], '-')} | **{t['col_country']}**: {hotel_info.get(t['col_country'], '-')}")
+        room_type_label = "种房型" if lang == "zh" else " room types"
+        with st.expander(f"🏨 {hotel_name} ({len(group_df)}{room_type_label}){op_price_display}", expanded=False):
+            st.markdown(f"**星级**: {hotel_info.get(t['col_star'], '-')} | **国家**: {hotel_info.get(t['col_country'], '-')} | **城市**: {hotel_info.get(t['col_city'], '-')}")
+            st.markdown(f"**入住日期**: {hotel_info.get(t['col_checkin'], '-')} | **离店日期**: {hotel_info.get(t['col_checkout'], '-')}")
             
             for idx, row in group_df.iterrows():
                 with st.container(border=True):
                     base = _to_num(row.get(t["col_group_rate"], ""))
-                    lowest_name, lowest_val = _find_lowest(row, t)
+                    lowest_name, lowest_val = _find_lowest(row, all_platforms)
                     
-                    cols = st.columns([1.2, 2, 0.8, 0.8, 1, 1] + [1] * len(PLATFORMS) + [1.5])
+                    cols = st.columns([2, 0.8, 0.8, 1, 1] + [1] * len(all_platforms) + [1.5])
                     
                     with cols[0]:
-                        st.caption(t["col_order"])
-                        st.markdown(f"**{row.get(t['col_order'], '')}**")
-                    with cols[1]:
-                        st.caption(t["col_room_type"])
+                        st.caption("房型")
                         st.markdown(f"**{row.get(t['col_room_type'], '')}**")
-                    with cols[2]:
-                        st.caption(t["col_currency"])
+                    with cols[1]:
+                        st.caption("币种")
                         st.markdown(row.get(t["col_currency"], "") or "-")
-                    with cols[3]:
-                        st.caption(t["col_group_rate"])
+                    with cols[2]:
+                        st.caption("团房组底价")
                         _v = base
                         st.markdown(f"{_v:.2f}" if _v is not None else "-")
-                    with cols[4]:
-                        st.caption(t["col_price"])
+                    with cols[3]:
+                        st.caption("运营报价")
                         _v = _to_num(row.get(t["col_price"], ""))
                         st.markdown(f"{_v:.2f}" if _v is not None else "-")
                         if _v is not None and base is not None and base != 0:
@@ -305,8 +272,8 @@ def render_price_compare_dashboard():
                             color = "green" if pct >= 0 else "red"
                             arrow = "▲" if pct >= 0 else "▼"
                             st.markdown(f"<span style='color:{color}; font-size:12px'>{arrow} {sign}{pct:.1f}%</span>", unsafe_allow_html=True)
-                    for j, p in enumerate(PLATFORMS):
-                        with cols[5 + j]:
+                    for j, p in enumerate(all_platforms):
+                        with cols[4 + j]:
                             st.caption(p)
                             _v = _to_num(row.get(p, ""))
                             _is_low = (lowest_name == p) if lowest_val is not None else False
@@ -318,7 +285,7 @@ def render_price_compare_dashboard():
                                 arrow = "▲" if pct >= 0 else "▼"
                                 st.markdown(f"<span style='color:{color}; font-size:12px'>{arrow} {sign}{pct:.1f}%</span>", unsafe_allow_html=True)
                     with cols[-1]:
-                        st.caption(t["col_lowest"])
+                        st.caption("最低报价")
                         if lowest_val is not None and base is not None and base != 0:
                             pct = _calc_pct_diff(lowest_val, base)
                             sign = "+" if pct >= 0 else ""

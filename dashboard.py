@@ -185,10 +185,14 @@ def render_dashboard(df):
     team_df["team_temp"] = team_df["Salesteam"].fillna("无销售团队").astype(str).str.strip()
     team_cnt = team_df["team_temp"].value_counts()
     total = team_cnt.sum()
-    labels = [f"{name} ({count}单)" for name, count in zip(team_cnt.index, team_cnt.values)]
-    fig2, ax2 = plt.subplots(figsize=(11, 4.5))
-    colors = ["#8b5cf6", "#ec4899", "#f43f5e", "#f97316", "#eab308", "#22c55e", "#14b8a6", "#3b82f6"]
-    wedges, texts, autotexts = ax2.pie(team_cnt.values, labels=labels, colors=colors,
-                                        autopct='%1.1f%%', startangle=90, textprops={'fontproperties': font_prop})
-    ax2.axis('equal')
-    st.pyplot(fig2)
+    
+    if total == 0:
+        st.info(t["empty_tip"] if "empty_tip" in t else "暂无数据")
+    else:
+        labels = [f"{name} ({count}单)" for name, count in zip(team_cnt.index, team_cnt.values)]
+        fig2, ax2 = plt.subplots(figsize=(11, 4.5))
+        colors = ["#8b5cf6", "#ec4899", "#f43f5e", "#f97316", "#eab308", "#22c55e", "#14b8a6", "#3b82f6"]
+        wedges, texts, autotexts = ax2.pie(team_cnt.values, labels=labels, colors=colors,
+                                            autopct='%1.1f%%', startangle=90, textprops={'fontproperties': font_prop})
+        ax2.axis('equal')
+        st.pyplot(fig2)

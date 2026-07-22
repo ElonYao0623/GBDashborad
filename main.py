@@ -19,6 +19,16 @@ st.set_page_config(
 # ---------------------- 登录模块 ----------------------
 if "user_role" not in st.session_state:
     st.session_state["user_role"] = None
+if "user_team" not in st.session_state:
+    st.session_state["user_team"] = None
+
+USER_ACCOUNTS = {
+    "Elon": {"password": "0623", "role": "admin", "team": None},
+    "Harriny": {"password": "8899", "role": "admin", "team": None},
+    "OP": {"password": "8888", "role": "OP", "team": None},
+    "MY": {"password": "my1234", "role": "sales", "team": "MY"},
+    "ID": {"password": "id1234", "role": "sales", "team": "ID"},
+}
 
 if st.session_state["user_role"] is None:
     with st.form("login_form", border=True):
@@ -27,14 +37,9 @@ if st.session_state["user_role"] is None:
         pwd = st.text_input("密码 / Password", type="password")
         submit_login = st.form_submit_button("登录 Login", type="primary")
         if submit_login:
-            if uname == "Elon" and pwd == "0623":
-                st.session_state["user_role"] = "admin"
-                st.rerun()
-            if uname == "Harriny" and pwd == "8899":
-                st.session_state["user_role"] = "admin"
-                st.rerun()
-            elif uname == "OP" and pwd == "8888":
-                st.session_state["user_role"] = "OP"
+            if uname in USER_ACCOUNTS and USER_ACCOUNTS[uname]["password"] == pwd:
+                st.session_state["user_role"] = USER_ACCOUNTS[uname]["role"]
+                st.session_state["user_team"] = USER_ACCOUNTS[uname]["team"]
                 st.rerun()
             else:
                 st.error("账号或密码错误 / Wrong username or password")
@@ -362,6 +367,11 @@ st.divider()
 init_csv()
 df = load_data()
 
+# 根据销售团队过滤数据（仅销售用户）
+user_team = st.session_state["user_team"]
+if user_role == "sales" and user_team:
+    df = df[df["Salesteam"].str.contains(user_team, case=False, na=False)]
+
 # ---------------------- 侧边栏（精简语言区，无多余容器） ----------------------
 with st.sidebar:
     st.markdown("### 🌐 " + t["lang_label"])
@@ -388,7 +398,14 @@ with st.sidebar:
         "new_order": t["new_order"],
         "list_manage": t["list_manage"]
     }
-    show_pages = list(all_pages.keys()) if user_role == "admin" else ["dashboard", "flow", "hotel_list", "price_dashboard"]
+    if user_role == "admin":
+        show_pages = list(all_pages.keys())
+    elif user_role == "OP":
+        show_pages = ["dashboard", "flow", "hotel_list", "price_dashboard", "price_compare", "list_manage"]
+    elif user_role == "sales":
+        show_pages = ["dashboard", "flow", "hotel_list", "price_dashboard", "price_compare"]
+    else:
+        show_pages = ["dashboard", "flow", "hotel_list", "price_dashboard"]
 
     selected_page = st.radio(
         label="页面选择",
@@ -409,6 +426,8 @@ with st.sidebar:
 
 # ---------------------- 页面路由 ----------------------
 active_p = st.session_state["current_page"]
+user_team = st.session_state["user_team"]
+
 if st.session_state["jump_status"] is not None:
     render_status_detail(df)
 else:
@@ -418,11 +437,11 @@ else:
         render_workflow_view(df)
     elif active_p == "new_order" and user_role == "admin":
         render_create_order(df)
-    elif active_p == "list_manage" and user_role == "admin":
-        render_order_manage(df)
+    elif active_p == "list_manage":
+        render_order_manage(df, user_team=user_team)
     elif active_p == "hotel_list":
         render_hotel_list(df)
-    elif active_p == "price_compare" and user_role == "admin":
+    elif active_p == "price_compare":
         render_price_compare(df)
     elif active_p == "price_dashboard":
         render_price_compare_dashboard()
