@@ -105,7 +105,7 @@ def init_csv():
             "出行目的 Purpose of travel", "特殊需求 Special Requests",
             "Joy 底价 Joy's Net Rate", "建议卖价 Suggested Selling Price",
             "额外税费需求 Extra tax if needed", "房间保留时间", "支付方式",
-            "餐食", "取消政策", "未成单原因", "运营备注 Ops Notes", "BD", "Salesteam", "酒店名称 Hotel Name",
+            "餐食", "取消政策", "未成单原因（一级）", "未成单原因（二级）", "运营备注 Ops Notes", "BD", "Salesteam", "酒店名称 Hotel Name",
             "销售姓名 Sales Name", "备注"
         ]
         df = pd.DataFrame(columns=cols)
@@ -203,7 +203,24 @@ def _fetch_feishu_sheet(config_key, label):
     headers = values[0]
     data_rows = values[1:] if len(values) > 1 else []
 
-    df = pd.DataFrame(data_rows, columns=headers)
+    # 处理列名中可能包含的链接对象
+    processed_headers = []
+    for h in headers:
+        if isinstance(h, list):
+            # 如果是列表（包含链接对象），提取文本
+            for item in h:
+                if isinstance(item, dict) and 'text' in item:
+                    processed_headers.append(item['text'])
+                    break
+            else:
+                processed_headers.append(str(h))
+        elif isinstance(h, dict) and 'text' in h:
+            # 如果是链接对象
+            processed_headers.append(h['text'])
+        else:
+            processed_headers.append(str(h))
+
+    df = pd.DataFrame(data_rows, columns=processed_headers)
 
     # 去重列名：保留第一个，移除重复列（使用索引移除，避免df.drop移除所有同名列）
     seen = set()
@@ -287,6 +304,23 @@ def _write_feishu_sheet(df, config_key, label):
     print(f"[飞书写入] 数据预览(前2行): {values[:2]}")
 
     col_letter = _col_num_to_letter(len(df.columns))
+    
+    max_rows = 2000
+    clear_range = f"{sheet_id}!A1:{col_letter}{max_rows}"
+    clear_body = {
+        "valueRange": {
+            "range": clear_range,
+            "values": [[""] * len(df.columns)] * max_rows
+        },
+        "valueInputOption": "USER_ENTERED"
+    }
+    try:
+        clear_resp = requests.put(url, headers=headers, json=clear_body, timeout=12)
+        clear_res = clear_resp.json()
+        print(f"[飞书写入] 清空表格响应: {json.dumps(clear_res, ensure_ascii=False)}")
+    except Exception as clear_err:
+        print(f"[飞书写入] 清空表格失败（继续写入）: {str(clear_err)}")
+
     body = {
         "valueRange": {
             "range": f"{sheet_id}!A1:{col_letter}{len(values)}",

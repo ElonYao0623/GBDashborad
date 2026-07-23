@@ -403,7 +403,7 @@ with st.sidebar:
     elif user_role == "OP":
         show_pages = ["dashboard", "flow", "hotel_list", "price_dashboard", "price_compare", "list_manage"]
     elif user_role == "sales":
-        show_pages = ["dashboard", "flow", "hotel_list", "price_dashboard", "price_compare"]
+        show_pages = ["dashboard", "flow", "hotel_list", "price_dashboard"]
     else:
         show_pages = ["dashboard", "flow", "hotel_list", "price_dashboard"]
 

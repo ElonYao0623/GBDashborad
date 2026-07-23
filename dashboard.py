@@ -61,7 +61,18 @@ def render_dashboard(df):
     else:
         active_df["状态"] = active_df[status_col].fillna("").astype(str).str.strip()
     active_df["标准状态"] = active_df["状态"].apply(get_standard_status)
-    total = len(active_df)
+    
+    if "团单号" in active_df.columns:
+        active_df["团单号"] = active_df["团单号"].fillna("").astype(str).str.strip()
+    if "客户名称 Customer Name" in active_df.columns:
+        active_df["客户名称 Customer Name"] = active_df["客户名称 Customer Name"].fillna("").astype(str).str.strip()
+    
+    active_df["去重键"] = active_df.apply(
+        lambda row: row["团单号"] if row.get("团单号", "") else row.get("客户名称 Customer Name", ""),
+        axis=1
+    )
+    unique_df = active_df[["去重键", "标准状态"]].drop_duplicates()
+    total = len(unique_df)
     st.metric(t["total_order"], total)
     st.divider()
 
@@ -79,7 +90,12 @@ def render_dashboard(df):
             status_counts[display_text] = 0
             display_to_std[display_text] = std_status
 
-        std_counts = valid_df.groupby("标准状态").size()
+        valid_df["去重键"] = valid_df.apply(
+            lambda row: row["团单号"] if row.get("团单号", "") else row.get("客户名称 Customer Name", ""),
+            axis=1
+        )
+        unique_valid_df = valid_df[["去重键", "标准状态"]].drop_duplicates()
+        std_counts = unique_valid_df.groupby("标准状态").size()
         for std_status in WORKFLOW_STEPS_ZH:
             display_text = get_workflow_step_text(lang, std_status)
             status_counts[display_text] = int(std_counts.get(std_status, 0))
@@ -179,11 +195,17 @@ def render_dashboard(df):
     st.pyplot(fig3)
     st.divider()
     st.subheader(t["team_chart_title"])
-    team_df = df.copy()
+    team_df = active_df.copy()
     if "Salesteam" not in team_df.columns:
         team_df["Salesteam"] = ""
     team_df["team_temp"] = team_df["Salesteam"].fillna("无销售团队").astype(str).str.strip()
-    team_cnt = team_df["team_temp"].value_counts()
+    
+    team_df["去重键"] = team_df.apply(
+        lambda row: row["团单号"] if row.get("团单号", "") else row.get("客户名称 Customer Name", ""),
+        axis=1
+    )
+    unique_team_df = team_df[["去重键", "标准状态", "team_temp"]].drop_duplicates()
+    team_cnt = unique_team_df["team_temp"].value_counts()
     total = team_cnt.sum()
     
     if total == 0:

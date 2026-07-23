@@ -35,7 +35,8 @@ def render_order_manage(df, user_team=None):
         "支付方式",
         "餐食",
         "取消政策",
-        "未成单原因",
+        "未成单原因（一级）",
+        "未成单原因（二级）",
         "运营备注 Ops Notes",
         "BD",
         "Salesteam",
@@ -231,7 +232,8 @@ def render_order_manage(df, user_team=None):
                         meal = st.text_input("餐食", value=get_val("餐食"))
                     with c11:
                         cancel_policy_input = st.text_input("取消政策", value=get_val("取消政策"))
-                        fail_reason = st.text_input("未成单原因", value=get_val("未成单原因"))
+                        fail_reason_1 = st.text_input("未成单原因（一级）", value=get_val("未成单原因（一级）"))
+                        fail_reason_2 = st.text_input("未成单原因（二级）", value=get_val("未成单原因（二级）"))
                     with c12:
                         ops_notes_input = st.text_input("运营备注 Ops Notes", value=get_val("运营备注 Ops Notes"))
 
@@ -268,7 +270,8 @@ def render_order_manage(df, user_team=None):
                         row["支付方式"] = pay_method_input
                         row["餐食"] = meal
                         row["取消政策"] = cancel_policy_input
-                        row["未成单原因"] = fail_reason
+                        row["未成单原因（一级）"] = fail_reason_1
+                        row["未成单原因（二级）"] = fail_reason_2
                         row["运营备注 Ops Notes"] = ops_notes_input
                         full_df.loc[origin_index] = row
                         st.session_state["order_full_df"] = full_df.copy()

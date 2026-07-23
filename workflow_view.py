@@ -29,8 +29,9 @@ PAGE_TEXT = {
         "joy_price": "Joy 底价",
         "suggested_price": "建议卖价",
         "room_count": "房间数",
-        "fail_reason": "未成单原因",
-        "Unknown": "未知",
+        "fail_reason_1": "未成单原因（一级）",
+        "fail_reason_2": "未成单原因（二级）",
+        "Unknown": "Unknown",
         "ops_remark": "运营备注"
     },
     "en": {
@@ -59,9 +60,10 @@ PAGE_TEXT = {
         "joy_price": "Joy's Net Rate",
         "suggested_price": "Suggested Selling Price",
         "room_count": "Rooms",
-        "fail_reason": "Uncompleted Reason",
+        "fail_reason_1": "Uncompleted Reason (Level 1)",
+        "fail_reason_2": "Uncompleted Reason (Level 2)",
         "Unknown": "Unknown",
-        "ops_remark": "OP Notes"
+        "ops_remark": "Operations Remark"
     }
 }
 def safe_val(val):
@@ -99,7 +101,7 @@ def render_workflow_view(df):
             return None
     if "入住日期 Check-in Date" not in workflow_df.columns:
         workflow_df["入住日期 Check-in Date"] = ""
-    workflow_df["距离入住天数"] = workflow_df["入住日期 Check-in Date"].apply(calc_day)
+    workflow_df["距离入住天数"] = workflow_df["入住日期 Check-in Date"].apply(calc_day).astype("Int64")
     
     def calc_status_days(s):
         try:
@@ -255,5 +257,6 @@ def render_workflow_view(df):
                 st.write(f"**{t['suggested_price']}**: {safe_val(row.get('建议卖价 Suggested Selling Price', ''))}")
                 st.write(f"**{t['room_count']}**: {safe_val(row.get('房间数 Rooms', ''))}")
             with col3:
-                st.write(f"**{t['fail_reason']}**: {safe_val(row.get('未成单原因', ''))}")
+                st.write(f"**{t['fail_reason_1']}**: {safe_val(row.get('未成单原因（一级）', ''))}")
+                st.write(f"**{t['fail_reason_2']}**: {safe_val(row.get('未成单原因（二级）', ''))}")
                 st.write(f"**{t['ops_remark']}**: {safe_val(row.get('运营备注 Ops Notes', ''))}")

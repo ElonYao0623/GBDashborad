@@ -20,7 +20,8 @@ PAGE_TEXT = {
         "col_checkin": "入住日期",
         "col_days": "距离入住天数",
         "col_last_update": "最后更新时间",
-        "col_fail_reason": "失败原因"
+        "col_fail_reason_1": "失败原因（一级）",
+        "col_fail_reason_2": "失败原因（二级）"
     },
     "en": {
         "page_header": "📈 Status Detail Dashboard",
@@ -38,7 +39,8 @@ PAGE_TEXT = {
         "col_checkin": "Check-in",
         "col_days": "Days to Check-in",
         "col_last_update": "Last Update",
-        "col_fail_reason": "Failure Reason"
+        "col_fail_reason_1": "Failure Reason (Level 1)",
+        "col_fail_reason_2": "Failure Reason (Level 2)"
     }
 }
 
@@ -176,6 +178,7 @@ def render_status_detail(df):
                 st.text_input("餐食", value=get_val(row, "餐食"), disabled=True, key=f"sd_{idx}_meal")
             with c11:
                 st.text_input("取消政策", value=get_val(row, "取消政策"), disabled=True, key=f"sd_{idx}_cancel")
-                st.text_input("未成单原因", value=get_val(row, "未成单原因"), disabled=True, key=f"sd_{idx}_fail")
+                st.text_input("未成单原因（一级）", value=get_val(row, "未成单原因（一级）"), disabled=True, key=f"sd_{idx}_fail_1")
+                st.text_input("未成单原因（二级）", value=get_val(row, "未成单原因（二级）"), disabled=True, key=f"sd_{idx}_fail_2")
             with c12:
                 st.text_input("运营备注 Ops Notes", value=get_val(row, "运营备注 Ops Notes"), disabled=True, key=f"sd_{idx}_ops")

@@ -146,7 +146,8 @@ PAGE_TEXT = {
         "form_pay_method": "支付方式",
         "form_meal": "餐食",
         "form_cancel_policy": "取消政策",
-        "form_fail_reason": "未成单原因",
+        "form_fail_reason_1": "未成单原因（一级）",
+        "form_fail_reason_2": "未成单原因（二级）",
         "form_ops_note": "运营备注 Ops Notes",
         "form_bd": "销售 BD",
         "form_sale_team": "销售团队 Salesteam",
@@ -200,7 +201,8 @@ PAGE_TEXT = {
         "form_pay_method": "Payment",
         "form_meal": "Meal Plan",
         "form_cancel_policy": "Cancellation Policy",
-        "form_fail_reason": "Failure Reason",
+        "form_fail_reason_1": "Failure Reason (Level 1)",
+        "form_fail_reason_2": "Failure Reason (Level 2)",
         "form_ops_note": "Operation Notes",
         "form_bd": "BD Sales",
         "form_sale_team": "Sales Team",
@@ -272,7 +274,8 @@ def render_create_order(df):
             with c6:
                 meal = st.text_input(t["form_meal"])
                 cancel_policy = st.text_input(t["form_cancel_policy"])
-                fail_reason = st.text_input(t["form_fail_reason"])
+                fail_reason_1 = st.text_input(t["form_fail_reason_1"])
+                fail_reason_2 = st.text_input(t["form_fail_reason_2"])
                 ops_note = st.text_input(t["form_ops_note"])
             c7, c8 = st.columns(2)
             with c7:
@@ -320,7 +323,8 @@ def render_create_order(df):
                     "支付方式": pay_method.strip(),
                     "餐食": meal.strip(),
                     "取消政策": cancel_policy.strip(),
-                    "未成单原因": fail_reason.strip(),
+                    "未成单原因（一级）": fail_reason_1.strip(),
+                    "未成单原因（二级）": fail_reason_2.strip(),
                     "运营备注 Ops Notes": ops_note.strip(),
                     "BD": bd.strip(),
                     "Salesteam": sale_team.strip(),
@@ -370,7 +374,9 @@ def render_create_order(df):
                     "支付方式": "支付方式",
                     "餐食": "餐食",
                     "取消政策": "取消政策",
-                    "未成单原因": "未成单原因",
+                    "未成单原因": "未成单原因（一级）",
+                    "未成单原因（一级）": "未成单原因（一级）",
+                    "未成单原因（二级）": "未成单原因（二级）",
                     "出行目的 Purpose of travel": "出行目的 Purpose of travel",
                     "特殊需求 Special Requests": "特殊需求 Special Requests",
                     "运营备注 Ops Notes": "运营备注 Ops Notes",
@@ -393,7 +399,7 @@ def render_create_order(df):
                     "出行目的 Purpose of travel", "特殊需求 Special Requests",
                     "Joy 底价 Joy's Net Rate", "建议卖价 Suggested Selling Price",
                     "额外税费需求 Extra tax if needed", "房间保留时间", "支付方式",
-                    "餐食", "取消政策", "未成单原因", "运营备注 Ops Notes", "BD", "Salesteam", "酒店名称 Hotel Name",
+                    "餐食", "取消政策", "未成单原因（一级）", "未成单原因（二级）", "运营备注 Ops Notes", "BD", "Salesteam", "酒店名称 Hotel Name",
                     "销售姓名 Sales Name", "备注"
                 ]
                 mapped_df = pd.DataFrame(columns=std_cols)

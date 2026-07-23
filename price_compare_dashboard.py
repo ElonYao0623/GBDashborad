@@ -14,6 +14,7 @@ PAGE_TEXT = {
         "col_hotel": "酒店名称",
         "col_star": "星级",
         "col_country": "国家",
+        "col_sales_team": "销售团队",
         "col_city": "城市",
         "col_currency": "报价币种",
         "col_checkin": "Check in",
@@ -36,6 +37,7 @@ PAGE_TEXT = {
         "col_hotel": "酒店名称",
         "col_star": "星级",
         "col_country": "国家",
+        "col_sales_team": "销售团队",
         "col_city": "城市",
         "col_currency": "报价币种",
         "col_checkin": "Check in",
@@ -121,9 +123,17 @@ def render_price_compare_dashboard():
     if price_df.empty:
         st.warning(t["empty_tip"])
         return
+    
+    user_role = st.session_state.get("user_role", "")
+    user_team = st.session_state.get("user_team", "")
+    if user_role == "sales" and user_team and t["col_sales_team"] in price_df.columns:
+        price_df = price_df[price_df[t["col_sales_team"]].astype(str).str.contains(user_team, case=False, na=False)]
+        if price_df.empty:
+            st.warning(t["empty_tip"])
+            return
 
     base_cols = [
-        t["col_hotel"], t["col_star"], t["col_country"], t["col_city"],
+        t["col_hotel"], t["col_star"], t["col_country"], t["col_sales_team"], t["col_city"],
         t["col_currency"], t["col_checkin"], t["col_checkout"],
         t["col_room_type"], t["col_group_rate"], t["col_price"]
     ]
@@ -242,7 +252,7 @@ def render_price_compare_dashboard():
         
         room_type_label = "种房型" if lang == "zh" else " room types"
         with st.expander(f"🏨 {hotel_name} ({len(group_df)}{room_type_label}){op_price_display}", expanded=False):
-            st.markdown(f"**星级**: {hotel_info.get(t['col_star'], '-')} | **国家**: {hotel_info.get(t['col_country'], '-')} | **城市**: {hotel_info.get(t['col_city'], '-')}")
+            st.markdown(f"**星级**: {hotel_info.get(t['col_star'], '-')} | **国家**: {hotel_info.get(t['col_country'], '-')} | **销售团队**: {hotel_info.get(t['col_sales_team'], '-')} | **城市**: {hotel_info.get(t['col_city'], '-')}")
             st.markdown(f"**入住日期**: {hotel_info.get(t['col_checkin'], '-')} | **离店日期**: {hotel_info.get(t['col_checkout'], '-')}")
             
             for idx, row in group_df.iterrows():
