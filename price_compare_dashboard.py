@@ -23,12 +23,14 @@ PAGE_TEXT = {
         "col_group_rate": "团房组底价",
         "col_price": "运营报价",
         "col_lowest": "最低报价",
+        "col_order_id": "团单号",
         "filter_hotel": "酒店名称",
         "filter_country": "国家",
         "filter_city": "城市",
         "filter_room_type": "房型",
         "filter_checkin": "入住日期",
         "filter_checkout": "离店日期",
+        "filter_order_id": "团单号",
     },
     "en": {
         "page_header": "Price Comparison Dashboard",
@@ -46,12 +48,14 @@ PAGE_TEXT = {
         "col_group_rate": "团房组底价",
         "col_price": "运营报价",
         "col_lowest": "Lowest Quote",
+        "col_order_id": "Booking No",
         "filter_hotel": "Hotel Name",
         "filter_country": "Country",
         "filter_city": "City",
         "filter_room_type": "Room Type",
         "filter_checkin": "Check-in Date",
         "filter_checkout": "Check-out Date",
+        "filter_order_id": "Booking No",
     },
 }
 
@@ -96,6 +100,82 @@ def _load_price_data():
         except Exception:
             return pd.DataFrame()
     return pd.DataFrame()
+
+
+def _load_order_id_mapping():
+    """从主数据加载酒店名称到团单号的映射"""
+    if not os.path.exists(MAIN_FILE):
+        return {}
+    
+    try:
+        df = pd.read_csv(MAIN_FILE, encoding="utf-8-sig", dtype=str).fillna("")
+    except Exception:
+        return {}
+    
+    order_id_col = None
+    for c in ["团单号", "Booking No"]:
+        if c in df.columns:
+            order_id_col = c
+            break
+    
+    hotel_col = None
+    for c in ["酒店名称 Hotel Name", "酒店名称", "Hotel Name"]:
+        if c in df.columns:
+            hotel_col = c
+            break
+    
+    if not order_id_col or not hotel_col:
+        return {}
+    
+    import re
+    def _split_hotel_names(name):
+        if not name or str(name).strip().lower() == "nan":
+            return []
+        name = str(name).strip()
+        numbered_pattern = r"(?<![0-9])([0-9]+)\.\s*"
+        numbered_matches = list(re.finditer(numbered_pattern, name))
+        if len(numbered_matches) >= 2:
+            parts = []
+            start = 0
+            for i, match in enumerate(numbered_matches):
+                if i > 0:
+                    end = match.start()
+                    part = name[start:end].strip()
+                    if part:
+                        parts.append(part)
+                start = match.start()
+            part = name[start:].strip()
+            if part:
+                parts.append(part)
+            cleaned_parts = []
+            for p in parts:
+                p = re.sub(r"^[0-9]+\.\s*", "", p)
+                p = p.strip()
+                if p:
+                    cleaned_parts.append(p)
+            return cleaned_parts
+        parts = re.split(r"[/、&\+\n;；]", name)
+        parts = [p.strip() for p in parts if p.strip()]
+        return parts
+    
+    mapping = {}
+    for _, row in df.iterrows():
+        raw_name = row.get(hotel_col, "")
+        hotels = _split_hotel_names(raw_name)
+        order_id = str(row.get(order_id_col, "")).strip()
+        if not order_id:
+            continue
+        for h in hotels:
+            h = h.strip()
+            if h:
+                if h not in mapping:
+                    mapping[h] = set()
+                mapping[h].add(order_id)
+    
+    for h in mapping:
+        mapping[h] = ", ".join(sorted(mapping[h]))
+    
+    return mapping
 
 
 def render_price_compare_dashboard():
@@ -153,7 +233,7 @@ def render_price_compare_dashboard():
         st.warning(t["empty_tip"])
         return
 
-    f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns(6)
+    f_col1, f_col2, f_col3, f_col4, f_col5, f_col6, f_col7 = st.columns(7)
     with f_col1:
         sel_hotel = st.text_input(t["filter_hotel"], key="dash_filter_hotel")
     with f_col2:
@@ -166,6 +246,8 @@ def render_price_compare_dashboard():
         sel_checkin = st.date_input(t["filter_checkin"], key="dash_filter_checkin", value=None)
     with f_col6:
         sel_checkout = st.date_input(t["filter_checkout"], key="dash_filter_checkout", value=None)
+    with f_col7:
+        sel_order_id = st.text_input(t["filter_order_id"], key="dash_filter_order_id")
 
     filtered_df = price_df.copy()
     if sel_hotel.strip():
@@ -176,6 +258,14 @@ def render_price_compare_dashboard():
         filtered_df = filtered_df[filtered_df[t["col_city"]].astype(str).str.contains(sel_city.strip(), case=False, na=False)]
     if sel_room_type.strip():
         filtered_df = filtered_df[filtered_df[t["col_room_type"]].astype(str).str.contains(sel_room_type.strip(), case=False, na=False)]
+    
+    if sel_order_id.strip():
+        order_id_mapping = _load_order_id_mapping()
+        matching_hotels = [h for h, oids in order_id_mapping.items() if sel_order_id.strip() in oids]
+        if matching_hotels:
+            filtered_df = filtered_df[filtered_df[t["col_hotel"]].astype(str).str.strip().isin(matching_hotels)]
+        else:
+            filtered_df = filtered_df.iloc[0:0]
     
     if sel_checkin:
         sel_month = sel_checkin.month
@@ -237,6 +327,8 @@ def render_price_compare_dashboard():
     total_room_types = len(filtered_df)
     st.info(f"{'共' if lang == 'zh' else 'Total'} {total_hotels} {'家酒店' if lang == 'zh' else 'hotels'}, {total_room_types} {'种房型' if lang == 'zh' else 'room types'}")
 
+    order_id_mapping = _load_order_id_mapping()
+
     for hotel_name, group_df in hotel_groups:
         group_df = group_df.reset_index(drop=True)
         hotel_info = group_df.iloc[0]
@@ -250,10 +342,13 @@ def render_price_compare_dashboard():
                 op_prices.append(v)
         op_price_display = f" | **{t['col_price']}: {currency} {min(op_prices):.2f}**" if op_prices else ""
         
+        order_ids = order_id_mapping.get(hotel_name.strip(), "")
+        order_id_display = f" | **{t['col_order_id']}: {order_ids}**" if order_ids else ""
+        
         room_type_label = "种房型" if lang == "zh" else " room types"
         with st.expander(f"🏨 {hotel_name} ({len(group_df)}{room_type_label}){op_price_display}", expanded=False):
             st.markdown(f"**星级**: {hotel_info.get(t['col_star'], '-')} | **国家**: {hotel_info.get(t['col_country'], '-')} | **销售团队**: {hotel_info.get(t['col_sales_team'], '-')} | **城市**: {hotel_info.get(t['col_city'], '-')}")
-            st.markdown(f"**入住日期**: {hotel_info.get(t['col_checkin'], '-')} | **离店日期**: {hotel_info.get(t['col_checkout'], '-')}")
+            st.markdown(f"**入住日期**: {hotel_info.get(t['col_checkin'], '-')} | **离店日期**: {hotel_info.get(t['col_checkout'], '-')}{order_id_display}")
             
             for idx, row in group_df.iterrows():
                 with st.container(border=True):
