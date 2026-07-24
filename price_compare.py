@@ -188,9 +188,35 @@ def _split_hotel_names(name):
     if not name or str(name).strip().lower() == "nan":
         return []
     name = str(name).strip()
-    # 按常见分隔符拆分：/ 、 & + 换行 ; ；
+    
+    numbered_pattern = r'(?<![0-9])([0-9]+)\.\s*'
+    numbered_matches = list(re.finditer(numbered_pattern, name))
+    
+    if len(numbered_matches) >= 2:
+        parts = []
+        start = 0
+        for i, match in enumerate(numbered_matches):
+            if i > 0:
+                end = match.start()
+                part = name[start:end].strip()
+                if part:
+                    parts.append(part)
+            start = match.start()
+        part = name[start:].strip()
+        if part:
+            parts.append(part)
+        
+        cleaned_parts = []
+        for p in parts:
+            p = re.sub(r'^[0-9]+\.\s*', '', p)
+            p = p.strip()
+            if p:
+                cleaned_parts.append(p)
+        return cleaned_parts
+    
     parts = re.split(r"[/、&\+\n;；]", name)
     parts = [p.strip() for p in parts if p.strip()]
+    
     return parts
 
 
@@ -249,6 +275,7 @@ def _load_hotel_info(df):
         return pd.DataFrame()
 
     info = pd.DataFrame(rows)
+    
     return info
 
 
@@ -314,7 +341,21 @@ def _merge_with_existing(existing_df, hotel_info, t):
     new_rows = []
     for _, row in hotel_info.iterrows():
         hotel_name = str(row.get(hotel_col, "")).strip()
-        if hotel_name and hotel_name not in existing_hotels:
+        if not hotel_name:
+            continue
+        
+        is_duplicate = hotel_name in existing_hotels
+        
+        if not is_duplicate:
+            for existing_name in existing_hotels:
+                if existing_name and hotel_name in existing_name:
+                    is_duplicate = True
+                    break
+                if existing_name and existing_name in hotel_name:
+                    is_duplicate = True
+                    break
+        
+        if not is_duplicate:
             new_row = {}
             for c in hotel_info.columns:
                 new_row[c] = row[c]
