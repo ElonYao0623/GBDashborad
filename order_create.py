@@ -5,7 +5,7 @@ import os
 import traceback
 import threading
 import time
-from config import save_data, STATUS_WORKFLOW_MAP, get_workflow_step_text, load_data, fetch_feishu_table
+from config import save_data, STATUS_WORKFLOW_MAP, get_workflow_step_text, load_data, fetch_feishu_table, STATUS_DURATION_COL_MAP, get_standard_status
 
 # 模块级变量：后台线程通过这些变量与主线程通信（不能用 st.session_state，因为它是 thread-local 的）
 _sync_config = {"enabled": True, "interval": 60}
@@ -533,19 +533,57 @@ def render_create_order(df):
                 
                 sync_df["团单号"] = sync_df["团单号"].astype(str).str.strip()
                 
-                # 获取系统中现有的数据
                 current_df = load_data()
                 if not current_df.empty:
                     current_df["团单号"] = current_df["团单号"].astype(str).str.strip()
-                    # 找出系统中有但飞书没有的团单号
+                    
                     feishu_order_ids = set(sync_df["团单号"].dropna().tolist())
                     current_order_ids = set(current_df["团单号"].dropna().tolist())
                     local_only_orders = current_order_ids - feishu_order_ids
                     
                     if local_only_orders:
                         print(f"[自动同步] 删除系统中飞书不存在的团单号: {local_only_orders}")
-                        # 删除这些团单号的数据
                         sync_df = sync_df[~sync_df["团单号"].isin(local_only_orders)]
+                    
+                    current_time = datetime.now().strftime("%Y-%m-%d")
+                    current_order_map = current_df.set_index("团单号").to_dict(orient="index")
+                    
+                    for idx, row in sync_df.iterrows():
+                        order_no = str(row.get("团单号", "")).strip()
+                        new_status = str(row.get("状态", "")).strip()
+                        
+                        if order_no in current_order_map:
+                            current_row = current_order_map[order_no]
+                            old_status = str(current_row.get("状态", "")).strip()
+                            old_last_update = str(current_row.get("最后更新时间", "")).strip()
+                            
+                            if new_status != old_status and old_status and old_last_update:
+                                try:
+                                    for fmt in ["%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d"]:
+                                        try:
+                                            old_date = datetime.strptime(old_last_update, fmt).date()
+                                            new_date = datetime.strptime(current_time, "%Y-%m-%d").date()
+                                            duration_days = (new_date - old_date).days
+                                            old_std_status = get_standard_status(old_status)
+                                            duration_col = STATUS_DURATION_COL_MAP.get(old_std_status, "")
+                                            if duration_col:
+                                                existing_val = str(current_row.get(duration_col, ""))
+                                                if existing_val:
+                                                    try:
+                                                        existing_days = int(existing_val)
+                                                        duration_days += existing_days
+                                                    except ValueError:
+                                                        pass
+                                                if duration_col in sync_df.columns:
+                                                    sync_df.at[idx, duration_col] = str(duration_days)
+                                                else:
+                                                    sync_df[duration_col] = ""
+                                                    sync_df.at[idx, duration_col] = str(duration_days)
+                                            break
+                                        except ValueError:
+                                            continue
+                                except:
+                                    pass
                 
                 save_data(sync_df)
                 import pytz
