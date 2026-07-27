@@ -340,7 +340,7 @@ def render_price_compare_dashboard():
             v = _to_num(r.get(t["col_price"], ""))
             if v is not None and v > 0:
                 op_prices.append(v)
-        op_price_display = f" | **{t['col_price']}: {currency} {min(op_prices):.2f}**" if op_prices else ""
+        op_price_display = f" | **{t['col_price']}: {currency} {min(op_prices):,.0f}**" if op_prices else ""
         
         order_ids = order_id_mapping.get(hotel_name.strip(), "")
         order_id_display = f" | **{t['col_order_id']}: {order_ids}**" if order_ids else ""
@@ -366,11 +366,11 @@ def render_price_compare_dashboard():
                     with cols[2]:
                         st.caption("团房组底价")
                         _v = base
-                        st.markdown(f"{_v:.2f}" if _v is not None else "-")
+                        st.markdown(f"{_v:,.0f}" if _v is not None else "-")
                     with cols[3]:
                         st.caption("运营报价")
                         _v = _to_num(row.get(t["col_price"], ""))
-                        st.markdown(f"{_v:.2f}" if _v is not None else "-")
+                        st.markdown(f"{_v:,.0f}" if _v is not None else "-")
                         if _v is not None and base is not None and base != 0:
                             pct = _calc_pct_diff(_v, base)
                             sign = "+" if pct >= 0 else ""
@@ -382,7 +382,7 @@ def render_price_compare_dashboard():
                             st.caption(p)
                             _v = _to_num(row.get(p, ""))
                             _is_low = (lowest_name == p) if lowest_val is not None else False
-                            st.markdown(f"{'🏆 ' if _is_low else ''}{_v:.2f}" if _v is not None else "-")
+                            st.markdown(f"{'🏆 ' if _is_low else ''}{_v:,.0f}" if _v is not None else "-")
                             if _v is not None and base is not None and base != 0:
                                 pct = _calc_pct_diff(_v, base)
                                 sign = "+" if pct >= 0 else ""
