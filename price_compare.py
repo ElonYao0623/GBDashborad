@@ -282,6 +282,8 @@ def _load_hotel_info(df):
 def _merge_with_existing(existing_df, hotel_info, t):
     """将主数据的酒店信息与已保存的比价数据合并"""
     hotel_col = t["col_hotel"]
+    checkin_col = t["col_checkin"]
+    checkout_col = t["col_checkout"]
     
     # 确保 hotel_info 的列名与 t 中的列名一致
     hotel_info = hotel_info.copy()
@@ -321,6 +323,13 @@ def _merge_with_existing(existing_df, hotel_info, t):
         "Check out": t["col_checkout"],
     }
     hotel_info = hotel_info.rename(columns={k: v for k, v in col_map.items() if k in hotel_info.columns})
+    
+    # 对 hotel_info 按酒店名称+入住日期+离店日期去重
+    if not hotel_info.empty:
+        for col in [checkin_col, checkout_col]:
+            if col not in hotel_info.columns:
+                hotel_info[col] = ""
+        hotel_info = hotel_info.drop_duplicates(subset=[hotel_col, checkin_col, checkout_col], keep='first')
 
     if existing_df.empty:
         result = hotel_info.copy()
@@ -337,23 +346,31 @@ def _merge_with_existing(existing_df, hotel_info, t):
     if hotel_col not in existing_df.columns:
         existing_df[hotel_col] = ""
 
-    existing_hotels = set(existing_df[hotel_col].astype(str).str.strip().tolist())
+    existing_keys = set()
+    for _, row in existing_df.iterrows():
+        hn = str(row.get(hotel_col, "")).strip()
+        ci = str(row.get(checkin_col, "")).strip()
+        co = str(row.get(checkout_col, "")).strip()
+        existing_keys.add((hn, ci, co))
+    
     new_rows = []
     for _, row in hotel_info.iterrows():
         hotel_name = str(row.get(hotel_col, "")).strip()
+        checkin_val = str(row.get(checkin_col, "")).strip()
+        checkout_val = str(row.get(checkout_col, "")).strip()
         if not hotel_name:
             continue
         
-        is_duplicate = hotel_name in existing_hotels
+        key = (hotel_name, checkin_val, checkout_val)
+        if key in existing_keys:
+            continue
         
-        if not is_duplicate:
-            for existing_name in existing_hotels:
-                if existing_name and hotel_name in existing_name:
-                    is_duplicate = True
-                    break
-                if existing_name and existing_name in hotel_name:
-                    is_duplicate = True
-                    break
+        is_duplicate = False
+        for existing_key in existing_keys:
+            existing_hn, existing_ci, existing_co = existing_key
+            if hotel_name == existing_hn and checkin_val == existing_ci and checkout_val == existing_co:
+                is_duplicate = True
+                break
         
         if not is_duplicate:
             new_row = {}
