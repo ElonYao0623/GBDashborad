@@ -21,6 +21,7 @@ PAGE_TEXT = {
         "col_country": "国家",
         "col_sales_team": "销售团队",
         "col_city": "城市",
+        "col_order_id": "团单号",
         "col_currency": "报价币种",
         "col_room_type": "房型要求",
         "col_group_rate": "团房组底价",
@@ -28,6 +29,7 @@ PAGE_TEXT = {
         "col_star": "星级",
         "col_checkin": "Check in",
         "col_checkout": "Check out",
+        "filter_order_id": "团单号",
         "filter_section": "🔍 筛选",
         "filter_order_id": "团单号",
         "filter_hotel": "酒店名称",
@@ -76,6 +78,7 @@ PAGE_TEXT = {
         "col_currency": "Currency",
         "col_room_type": "Room Type",
         "col_group_rate": "Group Net Rate",
+        "filter_order_id": "Booking No",
         "col_price": "Op Quotation",
         "col_star": "Star",
         "col_checkin": "Check in",
@@ -176,7 +179,7 @@ def _normalize_feishu_columns(df, t):
     df = df.rename(columns=rename_map)
     
     for col in [t["col_hotel"], t["col_star"], t["col_country"], t["col_sales_team"], t["col_city"], t["col_currency"],
-                t["col_checkin"], t["col_checkout"], t["col_room_type"], t["col_group_rate"], t["col_price"]] + PLATFORMS:
+                t["col_checkin"], t["col_checkout"], t["col_room_type"], t["col_group_rate"], t["col_price"], t["filter_order_id"]] + PLATFORMS:
         if col not in df.columns:
             df[col] = ""
     
@@ -418,6 +421,7 @@ def _load_hotel_info(df):
     checkin_col = _find_col(["入住日期 Check-in Date", "入住日期 Check-in", "入住日期", "Check-in", "Check in"])
     checkout_col = _find_col(["离店日期 Check-out Date", "退房日期 Check-out", "离店日期", "退房日期", "Check-out", "Check out"])
     city_col = _find_col(["城市 City", "城市", "City"])
+    order_id_col = _find_col(["团单号", "团房单号 Booking No", "团房单号", "Booking No"])
 
     if not hotel_col:
         return pd.DataFrame()
@@ -436,7 +440,10 @@ def _load_hotel_info(df):
         checkin_val = str(row.get(checkin_col, "")).strip() if checkin_col else ""
         checkout_val = str(row.get(checkout_col, "")).strip() if checkout_col else ""
         city_val = str(row.get(city_col, "")).strip() if city_col else ""
+        order_id_val = str(row.get(order_id_col, "")).strip() if order_id_col else ""
         for h in hotels:
+            if not room_val.strip() and len(hotels) > 1:
+                continue
             row_data = {hotel_col: h}
             if country_col:
                 row_data[country_col] = country_val
@@ -458,6 +465,8 @@ def _load_hotel_info(df):
                 extracted_city = _extract_city_from_hotel_name(h)
                 if extracted_city:
                     row_data["城市"] = extracted_city
+            if order_id_col:
+                row_data[order_id_col] = order_id_val
             rows.append(row_data)
 
     if not rows:
@@ -510,6 +519,9 @@ def _merge_with_existing(existing_df, hotel_info, t):
         "Check Out": t["col_checkout"],
         "Check-out": t["col_checkout"],
         "Check out": t["col_checkout"],
+        "团单号": t["col_order_id"],
+        "团房单号": t["col_order_id"],
+        "Booking No": t["col_order_id"],
     }
     hotel_info = hotel_info.rename(columns={k: v for k, v in col_map.items() if k in hotel_info.columns})
     
@@ -596,7 +608,7 @@ def _merge_with_existing(existing_df, hotel_info, t):
     if t["col_checkout"] not in existing_df.columns:
         existing_df[t["col_checkout"]] = ""
 
-    # 用主数据回填已有酒店的星级、国家、销售团队、城市、币种、Check in/Check out（仅当本地为空时）
+    # 用主数据回填已有酒店的星级、国家、销售团队、城市、团单号、币种、Check in/Check out（仅当本地为空时）
     hotel_info_map = {}
     for _, row in hotel_info.iterrows():
         hn = str(row.get(hotel_col, "")).strip()
@@ -607,6 +619,7 @@ def _merge_with_existing(existing_df, hotel_info, t):
             t["col_country"]: str(row.get(t["col_country"], "")).strip() if t["col_country"] in row.index else "",
             t["col_sales_team"]: str(row.get(t["col_sales_team"], "")).strip() if t["col_sales_team"] in row.index else "",
             t["col_city"]: str(row.get(t["col_city"], "")).strip() if t["col_city"] in row.index else "",
+            t["col_order_id"]: str(row.get(t["col_order_id"], "")).strip() if t["col_order_id"] in row.index else "",
             t["col_currency"]: str(row.get(t["col_currency"], "")).strip() if t["col_currency"] in row.index else "",
             t["col_checkin"]: str(row.get(t["col_checkin"], "")).strip() if t["col_checkin"] in row.index else "",
             t["col_checkout"]: str(row.get(t["col_checkout"], "")).strip() if t["col_checkout"] in row.index else "",
@@ -616,7 +629,7 @@ def _merge_with_existing(existing_df, hotel_info, t):
         hn = str(row.get(hotel_col, "")).strip()
         if hn in hotel_info_map:
             info = hotel_info_map[hn]
-            for col_key in [t["col_star"], t["col_country"], t["col_sales_team"], t["col_city"], t["col_currency"], t["col_checkin"], t["col_checkout"]]:
+            for col_key in [t["col_star"], t["col_country"], t["col_sales_team"], t["col_city"], t["col_order_id"], t["col_currency"], t["col_checkin"], t["col_checkout"]]:
                 if col_key in existing_df.columns:
                     cur_val = str(row.get(col_key, "")).strip()
                     if (not cur_val or cur_val.lower() == "nan") and info[col_key]:
@@ -716,8 +729,8 @@ def render_price_compare(df):
         st.warning(t["empty_tip"])
         return
 
-    # 确保列顺序（去掉团单号，添加Check in/Check out和销售团队）
-    base_cols = [t["col_hotel"], t["col_star"], t["col_country"], t["col_sales_team"], t["col_city"], t["col_currency"], t["col_checkin"], t["col_checkout"], t["col_room_type"], t["col_group_rate"], t["col_price"]]
+    # 确保列顺序（添加团单号、Check in/Check out和销售团队）
+    base_cols = [t["col_hotel"], t["col_order_id"], t["col_star"], t["col_country"], t["col_sales_team"], t["col_city"], t["col_currency"], t["col_checkin"], t["col_checkout"], t["col_room_type"], t["col_group_rate"], t["col_price"]]
     all_cols = base_cols + PLATFORMS
     for c in all_cols:
         if c not in merged.columns:
@@ -763,8 +776,9 @@ def render_price_compare(df):
     if st.session_state.pop("_clear_filters", False):
         st.session_state["filter_hotel_input"] = ""
         st.session_state["filter_country_input"] = ""
+        st.session_state["filter_order_id_input"] = ""
 
-    f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns(5)
+    f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns(6)
     with f_col1:
         sel_hotel = st.text_input(t["filter_hotel"], key="filter_hotel_input")
     with f_col2:
@@ -775,6 +789,9 @@ def render_price_compare(df):
         sel_checkin = st.date_input("入住日期", key="filter_checkin_input", value=None)
     with f_col5:
         sel_checkout = st.date_input("离店日期", key="filter_checkout_input", value=None)
+    with f_col6:
+        sel_order_id = st.text_input(t["filter_order_id"], key="filter_order_id_input")
+
 
     import re as _re
     from datetime import datetime
@@ -785,6 +802,8 @@ def render_price_compare(df):
         filtered_df = filtered_df[filtered_df[t["col_country"]].astype(str).str.contains(_re.escape(sel_country.strip()), case=False, na=False, regex=True)]
     if sel_city.strip():
         filtered_df = filtered_df[filtered_df[t["col_city"]].astype(str).str.contains(_re.escape(sel_city.strip()), case=False, na=False, regex=True)]
+    if sel_order_id.strip():
+        filtered_df = filtered_df[filtered_df[t["col_order_id"]].astype(str).str.contains(_re.escape(sel_order_id.strip()), case=False, na=False, regex=True)]
     
     if sel_checkin:
         drop_indices = []
@@ -838,6 +857,22 @@ def render_price_compare(df):
     
     price_df = filtered_df.copy()
 
+    # 过滤空白房型：如果一个酒店有多个房型行，删除房型要求为空的行；如果只有一行且房型为空，保留它
+    filtered_rows = []
+    hotel_groups = price_df.groupby(t["col_hotel"])
+    for hotel_name, group in hotel_groups:
+        if len(group) == 1:
+            filtered_rows.append(group.iloc[0])
+        else:
+            for _, row in group.iterrows():
+                room_type = str(row.get(t["col_room_type"], "")).strip()
+                if room_type:
+                    filtered_rows.append(row)
+    if filtered_rows:
+        price_df = pd.DataFrame(filtered_rows)
+    else:
+        price_df = pd.DataFrame(columns=price_df.columns)
+
     # 显示标题
     st.subheader("📋 " + ("比价数据表" if lang == "zh" else "Price Comparison Table"))
     st.caption(t["delete_inline_tip"])
@@ -871,12 +906,13 @@ def render_price_compare(df):
         star = str(group_df.iloc[0].get(t["col_star"], ""))
         checkin = str(group_df.iloc[0].get(t["col_checkin"], ""))
         checkout = str(group_df.iloc[0].get(t["col_checkout"], ""))
+        order_id = str(group_df.iloc[0].get(t["col_order_id"], ""))
 
         room_cols = [t["col_room_type"], t["col_group_rate"], t["col_price"]] + [p for p in PLATFORMS if p in group_df.columns]
         editor_key = f"hotel_editor_{i}_{hotel_name}"
         
         with st.form(key=f"hotel_form_{i}_{hotel_name}", border=True):
-            hdr = st.columns([1, 5, 1, 2, 2, 2, 2, 2, 2])
+            hdr = st.columns([1, 5, 2, 1, 2, 2, 2, 2, 2, 2])
             with hdr[0]:
                 st.markdown(f"**# {i + 1}**")
             with hdr[1]:
@@ -885,36 +921,41 @@ def render_price_compare(df):
                     label_visibility="collapsed"
                 )
             with hdr[2]:
+                edited_order_id = st.text_input(
+                    t["col_order_id"], value=order_id, key=f"hotel_order_id_{i}_{hotel_name}",
+                    label_visibility="collapsed", placeholder=t["col_order_id"]
+                )
+            with hdr[3]:
                 edited_star = st.text_input(
                     t["col_star"], value=star, key=f"hotel_star_{i}_{hotel_name}",
                     label_visibility="collapsed", placeholder=t["col_star"]
                 )
-            with hdr[3]:
+            with hdr[4]:
                 edited_country = st.text_input(
                     t["col_country"], value=country, key=f"hotel_country_{i}_{hotel_name}",
                     label_visibility="collapsed", placeholder=t["col_country"]
                 )
-            with hdr[4]:
+            with hdr[5]:
                 edited_sales_team = st.text_input(
                     t["col_sales_team"], value=sales_team, key=f"hotel_sales_team_{i}_{hotel_name}",
                     label_visibility="collapsed", placeholder=t["col_sales_team"]
                 )
-            with hdr[5]:
+            with hdr[6]:
                 edited_city = st.text_input(
                     t["col_city"], value=city, key=f"hotel_city_{i}_{hotel_name}",
                     label_visibility="collapsed", placeholder=t["col_city"]
                 )
-            with hdr[6]:
+            with hdr[7]:
                 edited_currency = st.text_input(
                     t["col_currency"], value=currency, key=f"hotel_currency_{i}_{hotel_name}",
                     label_visibility="collapsed", placeholder=t["col_currency"]
                 )
-            with hdr[7]:
+            with hdr[8]:
                 edited_checkin = st.text_input(
                     t["col_checkin"], value=checkin, key=f"hotel_checkin_{i}_{hotel_name}",
                     label_visibility="collapsed", placeholder=t["col_checkin"]
                 )
-            with hdr[8]:
+            with hdr[9]:
                 edited_checkout = st.text_input(
                     t["col_checkout"], value=checkout, key=f"hotel_checkout_{i}_{hotel_name}",
                     label_visibility="collapsed", placeholder=t["col_checkout"]
@@ -1014,10 +1055,12 @@ def render_price_compare(df):
             saved_currency = st.session_state.get(f"hotel_currency_{i}_{hotel_name}", edited_currency)
             saved_checkin = st.session_state.get(f"hotel_checkin_{i}_{hotel_name}", edited_checkin)
             saved_checkout = st.session_state.get(f"hotel_checkout_{i}_{hotel_name}", edited_checkout)
+            saved_order_id = st.session_state.get(f"hotel_order_id_{i}_{hotel_name}", edited_order_id)
             
             for _, row in data_source.iterrows():
                 rebuilt_rows.append({
                     t["col_hotel"]: saved_hotel.strip(),
+                    t["col_order_id"]: saved_order_id.strip(),
                     t["col_star"]: saved_star.strip(),
                     t["col_country"]: saved_country.strip(),
                     t["col_sales_team"]: saved_sales_team.strip(),
@@ -1032,7 +1075,7 @@ def render_price_compare(df):
                 })
 
     # 重建 price_df：合并未筛选展示的酒店（保持原数据）与当前展示的酒店（含编辑）
-    base_cols = [t["col_hotel"], t["col_star"], t["col_country"], t["col_sales_team"], t["col_city"], t["col_currency"], t["col_checkin"], t["col_checkout"], t["col_room_type"], t["col_group_rate"], t["col_price"]] + PLATFORMS
+    base_cols = [t["col_hotel"], t["col_order_id"], t["col_star"], t["col_country"], t["col_sales_team"], t["col_city"], t["col_currency"], t["col_checkin"], t["col_checkout"], t["col_room_type"], t["col_group_rate"], t["col_price"]] + PLATFORMS
 
     # 当前展示的酒店（已编辑）
     if rebuilt_rows:
@@ -1060,6 +1103,22 @@ def render_price_compare(df):
 
     # 合并：未展示的原数据 + 已编辑的展示数据
     new_price_df = pd.concat([unfiltered_df, rebuilt_df], ignore_index=True)
+    
+    # 过滤空白房型：如果一个酒店有多个房型行，删除房型要求为空的行；如果只有一行且房型为空，保留它
+    filtered_rows = []
+    hotel_groups = new_price_df.groupby(t["col_hotel"])
+    for hotel_name, group in hotel_groups:
+        if len(group) == 1:
+            filtered_rows.append(group.iloc[0])
+        else:
+            for _, row in group.iterrows():
+                room_type = str(row.get(t["col_room_type"], "")).strip()
+                if room_type:
+                    filtered_rows.append(row)
+    if filtered_rows:
+        new_price_df = pd.DataFrame(filtered_rows)
+    else:
+        new_price_df = pd.DataFrame(columns=base_cols)
     
     print(f"[重建调试] rebuilt_rows 长度: {len(rebuilt_rows)}")
     print(f"[重建调试] rebuilt_df 长度: {len(rebuilt_df)}")
