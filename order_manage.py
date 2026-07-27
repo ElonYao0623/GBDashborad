@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
+from datetime import datetime
 from config import load_data, save_data, STATUS_WORKFLOW_MAP, get_workflow_step_text, get_standard_status
 
 def render_order_manage(df, user_team=None):
@@ -42,7 +43,8 @@ def render_order_manage(df, user_team=None):
         "Salesteam",
         "酒店名称 Hotel Name",
         "销售姓名 Sales Name",
-        "备注"
+        "备注",
+        "状态变更历史"
     ]
 
     # 修复：移除 cache_clear=True 参数
@@ -239,6 +241,31 @@ def render_order_manage(df, user_team=None):
 
                     if st.form_submit_button("保存修改"):
                         row = full_df.loc[origin_index]
+                        old_status = safe_str(row.get("状态", ""))
+                        old_last_update = safe_str(row.get("最后更新时间", ""))
+                        current_time = datetime.now().strftime("%Y-%m-%d")
+                        
+                        if status_input != old_status and old_status and old_last_update:
+                            try:
+                                for fmt in ["%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d"]:
+                                    try:
+                                        old_date = datetime.strptime(old_last_update, fmt).date()
+                                        new_date = datetime.strptime(current_time, "%Y-%m-%d").date()
+                                        duration_days = (new_date - old_date).days
+                                        old_status_display = get_workflow_step_text(lang, get_standard_status(old_status))
+                                        history_entry = f"{old_status_display}: {duration_days}天 ({old_last_update} → {current_time})"
+                                        existing_history = safe_str(row.get("状态变更历史", ""))
+                                        if existing_history:
+                                            new_history = existing_history + " | " + history_entry
+                                        else:
+                                            new_history = history_entry
+                                        row["状态变更历史"] = new_history
+                                        break
+                                    except ValueError:
+                                        continue
+                            except:
+                                pass
+                        
                         row["团单号"] = order_no_input
                         row["客户名称 Customer Name"] = customer
                         row["User ID"] = user_id
@@ -248,7 +275,7 @@ def render_order_manage(df, user_team=None):
                         row["Salesteam"] = sales_team_input
                         row["销售姓名 Sales Name"] = sales_name_input
                         row["提交时间 Submitted by"] = submitted_by_input
-                        row["最后更新时间"] = last_update_input
+                        row["最后更新时间"] = current_time
                         row["状态"] = status_input
                         row["酒店名称 Hotel Name"] = hotel_name
                         row["酒店星级 Star Rating"] = star_rating

@@ -260,3 +260,8 @@ def render_workflow_view(df):
                 st.write(f"**{t['fail_reason_1']}**: {safe_val(row.get('未成单原因（一级）', ''))}")
                 st.write(f"**{t['fail_reason_2']}**: {safe_val(row.get('未成单原因（二级）', ''))}")
                 st.write(f"**{t['ops_remark']}**: {safe_val(row.get('运营备注 Ops Notes', ''))}")
+                history = safe_val(row.get('状态变更历史', ''))
+                if history:
+                    st.write(f"**状态变更历史**:")
+                    for entry in history.split(" | "):
+                        st.write(f"  • {entry}")

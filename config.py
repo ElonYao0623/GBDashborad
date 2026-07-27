@@ -106,7 +106,7 @@ def init_csv():
             "Joy 底价 Joy's Net Rate", "建议卖价 Suggested Selling Price",
             "额外税费需求 Extra tax if needed", "房间保留时间", "支付方式",
             "餐食", "取消政策", "未成单原因（一级）", "未成单原因（二级）", "运营备注 Ops Notes", "BD", "Salesteam", "酒店名称 Hotel Name",
-            "销售姓名 Sales Name", "备注"
+            "销售姓名 Sales Name", "备注", "状态变更历史"
         ]
         df = pd.DataFrame(columns=cols)
         df.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
