@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import date, datetime
-from config import STATUS_WORKFLOW_MAP, WORKFLOW_STEPS_ZH, save_data, STATUS_FLOW_RULE, get_workflow_step_text, get_standard_status
+from config import STATUS_WORKFLOW_MAP, WORKFLOW_STEPS_ZH, save_data, STATUS_FLOW_RULE, get_workflow_step_text, get_standard_status, STATUS_DURATION_COL_MAP
 PAGE_TEXT = {
     "zh": {
         "page_header": "团房全流程跟踪看板",
@@ -260,8 +260,10 @@ def render_workflow_view(df):
                 st.write(f"**{t['fail_reason_1']}**: {safe_val(row.get('未成单原因（一级）', ''))}")
                 st.write(f"**{t['fail_reason_2']}**: {safe_val(row.get('未成单原因（二级）', ''))}")
                 st.write(f"**{t['ops_remark']}**: {safe_val(row.get('运营备注 Ops Notes', ''))}")
-                history = safe_val(row.get('状态变更历史', ''))
-                if history:
-                    st.write(f"**状态变更历史**:")
-                    for entry in history.split(" | "):
-                        st.write(f"  • {entry}")
+                
+                st.write(f"**状态持续时间**:")
+                for status_key, col_name in STATUS_DURATION_COL_MAP.items():
+                    days = safe_val(row.get(col_name, ""))
+                    if days:
+                        status_text = STATUS_WORKFLOW_MAP.get(status_key, {}).get(lang, status_key)
+                        st.write(f"  • {status_text}: {days}天")

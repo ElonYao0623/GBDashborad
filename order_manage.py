@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 from datetime import datetime
-from config import load_data, save_data, STATUS_WORKFLOW_MAP, get_workflow_step_text, get_standard_status
+from config import load_data, save_data, STATUS_WORKFLOW_MAP, get_workflow_step_text, get_standard_status, STATUS_DURATION_COL_MAP
 
 def render_order_manage(df, user_team=None):
     lang = st.session_state["lang"]
@@ -44,7 +44,9 @@ def render_order_manage(df, user_team=None):
         "酒店名称 Hotel Name",
         "销售姓名 Sales Name",
         "备注",
-        "状态变更历史"
+        "客户咨询天数", "等待Joy报价天数", "等待运营询价天数", "询价成功天数", "询价失败天数",
+        "等待运营审核天数", "等待客户确认天数", "客户确认成团天数", "客户确认失败天数",
+        "等待酒店锁房天数", "考虑备选酒店天数", "等待客户支付天数", "团房成功天数", "团房失败天数"
     ]
 
     # 修复：移除 cache_clear=True 参数
@@ -252,14 +254,17 @@ def render_order_manage(df, user_team=None):
                                         old_date = datetime.strptime(old_last_update, fmt).date()
                                         new_date = datetime.strptime(current_time, "%Y-%m-%d").date()
                                         duration_days = (new_date - old_date).days
-                                        old_status_display = get_workflow_step_text(lang, get_standard_status(old_status))
-                                        history_entry = f"{old_status_display}: {duration_days}天 ({old_last_update} → {current_time})"
-                                        existing_history = safe_str(row.get("状态变更历史", ""))
-                                        if existing_history:
-                                            new_history = existing_history + " | " + history_entry
-                                        else:
-                                            new_history = history_entry
-                                        row["状态变更历史"] = new_history
+                                        old_std_status = get_standard_status(old_status)
+                                        duration_col = STATUS_DURATION_COL_MAP.get(old_std_status, "")
+                                        if duration_col:
+                                            existing_val = safe_str(row.get(duration_col, ""))
+                                            if existing_val:
+                                                try:
+                                                    existing_days = int(existing_val)
+                                                    duration_days += existing_days
+                                                except ValueError:
+                                                    pass
+                                            row[duration_col] = str(duration_days)
                                         break
                                     except ValueError:
                                         continue

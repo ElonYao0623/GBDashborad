@@ -92,6 +92,30 @@ def get_standard_status(status_key):
             return key
     return status_key
 
+
+STATUS_DURATION_COL_MAP = {
+    "customer_inquiry": "客户咨询天数",
+    "awaiting_joy_quotation": "等待Joy报价天数",
+    "awaiting_ops_inquiry": "等待运营询价天数",
+    "inquiry_succeeded": "询价成功天数",
+    "inquiry_failed": "询价失败天数",
+    "awaiting_ops_review": "等待运营审核天数",
+    "awaiting_customer_confirm": "等待客户确认天数",
+    "customer_confirmed_group": "客户确认成团天数",
+    "customer_confirm_failed": "客户确认失败天数",
+    "awaiting_hotel_lock": "等待酒店锁房天数",
+    "considering_alternative": "考虑备选酒店天数",
+    "awaiting_payment": "等待客户支付天数",
+    "group_booking_success": "团房成功天数",
+    "group_booking_failed": "团房失败天数"
+}
+
+
+def get_status_duration_col(status_key):
+    """获取状态对应的持续天数列名"""
+    std_status = get_standard_status(status_key)
+    return STATUS_DURATION_COL_MAP.get(std_status, "")
+
 # ---------------- 本地数据读写 ----------------
 def init_csv():
     if not os.path.exists(DATA_FILE):
@@ -106,7 +130,10 @@ def init_csv():
             "Joy 底价 Joy's Net Rate", "建议卖价 Suggested Selling Price",
             "额外税费需求 Extra tax if needed", "房间保留时间", "支付方式",
             "餐食", "取消政策", "未成单原因（一级）", "未成单原因（二级）", "运营备注 Ops Notes", "BD", "Salesteam", "酒店名称 Hotel Name",
-            "销售姓名 Sales Name", "备注", "状态变更历史"
+            "销售姓名 Sales Name", "备注",
+            "客户咨询天数", "等待Joy报价天数", "等待运营询价天数", "询价成功天数", "询价失败天数",
+            "等待运营审核天数", "等待客户确认天数", "客户确认成团天数", "客户确认失败天数",
+            "等待酒店锁房天数", "考虑备选酒店天数", "等待客户支付天数", "团房成功天数", "团房失败天数"
         ]
         df = pd.DataFrame(columns=cols)
         df.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
