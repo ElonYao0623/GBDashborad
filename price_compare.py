@@ -220,6 +220,187 @@ def _split_hotel_names(name):
     return parts
 
 
+CITY_NAME_MAP = {
+    "xi'an": "Xi'an",
+    "xian": "Xi'an",
+    "beijing": "Beijing",
+    "budapest": "Budapest",
+    "bangkok": "Bangkok",
+    "singapore": "Singapore",
+    "tokyo": "Tokyo",
+    "shanghai": "Shanghai",
+    "kuala lumpur": "Kuala Lumpur",
+    "malacca": "Malacca",
+    "petaling jaya": "Petaling Jaya",
+    "balikpapan": "Balikpapan",
+    "barcelona": "Barcelona",
+    "da nang": "Da Nang",
+    "phuket": "Phuket",
+    "chiang mai": "Chiang Mai",
+    "hong kong": "Hong Kong",
+    "macau": "Macau",
+    "seoul": "Seoul",
+    "busan": "Busan",
+    "taipei": "Taipei",
+    "manila": "Manila",
+    "jakarta": "Jakarta",
+    "denpasar": "Denpasar",
+    "bali": "Bali",
+    "surabaya": "Surabaya",
+    "ho chi minh": "Ho Chi Minh",
+    "hanoi": "Hanoi",
+    "mumbai": "Mumbai",
+    "delhi": "Delhi",
+    "bangalore": "Bangalore",
+    "chennai": "Chennai",
+    "hyderabad": "Hyderabad",
+    "dubai": "Dubai",
+    "abu dhabi": "Abu Dhabi",
+    "kuwait": "Kuwait",
+    "riyadh": "Riyadh",
+    "jeddah": "Jeddah",
+    "cairo": "Cairo",
+    "doha": "Doha",
+    "muscat": "Muscat",
+    "istanbul": "Istanbul",
+    "ankara": "Ankara",
+    "athens": "Athens",
+    "rome": "Rome",
+    "milan": "Milan",
+    "venice": "Venice",
+    "florence": "Florence",
+    "paris": "Paris",
+    "london": "London",
+    "berlin": "Berlin",
+    "amsterdam": "Amsterdam",
+    "brussels": "Brussels",
+    "vienna": "Vienna",
+    "prague": "Prague",
+    "warsaw": "Warsaw",
+    "zagreb": "Zagreb",
+    "belgrade": "Belgrade",
+    "sophia": "Sofia",
+    "bucharest": "Bucharest",
+    "lisbon": "Lisbon",
+    "porto": "Porto",
+    "madrid": "Madrid",
+    "valencia": "Valencia",
+    "malaga": "Malaga",
+    "granada": "Granada",
+    "sevilla": "Seville",
+    "bilbao": "Bilbao",
+    "san sebastian": "San Sebastian",
+    "nice": "Nice",
+    "marseille": "Marseille",
+    "lyon": "Lyon",
+    "toulouse": "Toulouse",
+    "bordeaux": "Bordeaux",
+    "nantes": "Nantes",
+    "strasbourg": "Strasbourg",
+    "hamburg": "Hamburg",
+    "munich": "Munich",
+    "cologne": "Cologne",
+    "frankfurt": "Frankfurt",
+    "stuttgart": "Stuttgart",
+    "düsseldorf": "Düsseldorf",
+    "leipzig": "Leipzig",
+    "dresden": "Dresden",
+    "copenhagen": "Copenhagen",
+    "stockholm": "Stockholm",
+    "oslo": "Oslo",
+    "helsinki": "Helsinki",
+    "reykjavik": "Reykjavik",
+    "dublin": "Dublin",
+    "edinburgh": "Edinburgh",
+    "glasgow": "Glasgow",
+    "belfast": "Belfast",
+    "cardiff": "Cardiff",
+    "bristol": "Bristol",
+    "birmingham": "Birmingham",
+    "manchester": "Manchester",
+    "liverpool": "Liverpool",
+    "newcastle": "Newcastle",
+    "leeds": "Leeds",
+    "sheffield": "Sheffield",
+    "nottingham": "Nottingham",
+    "coventry": "Coventry",
+    "bradford": "Bradford",
+    "stoke": "Stoke-on-Trent",
+    "sunderland": "Sunderland",
+    "plymouth": "Plymouth",
+    "brighton": "Brighton",
+    "southampton": "Southampton",
+    "portsmouth": "Portsmouth",
+    "reading": "Reading",
+    "milton keynes": "Milton Keynes",
+    "blackpool": "Blackpool",
+    "bournemouth": "Bournemouth",
+    "moscow": "Moscow",
+    "saint petersburg": "St. Petersburg",
+    "kazan": "Kazan",
+    "novosibirsk": "Novosibirsk",
+    "ekaterinburg": "Yekaterinburg",
+    "samara": "Samara",
+    "omsk": "Omsk",
+    "chelyabinsk": "Chelyabinsk",
+    "nizhny novgorod": "Nizhny Novgorod",
+    "krasnoyarsk": "Krasnoyarsk",
+    "toledo": "Toledo",
+    "almeria": "Almeria",
+    "jaipur": "Jaipur",
+    "udaipur": "Udaipur",
+    "jodhpur": "Jodhpur",
+    "pushkar": "Pushkar",
+    "agra": "Agra",
+    "varanasi": "Varanasi",
+    "kashmir": "Kashmir",
+    "goa": "Goa",
+    "kerala": "Kerala",
+    "trivandrum": "Thiruvananthapuram",
+    "kochi": "Kochi",
+    "munnar": "Munnar",
+    "alleppey": "Alappuzha",
+    "mysore": "Mysore",
+    "coimbatore": "Coimbatore",
+    "madurai": "Madurai",
+    "ooty": "Ooty",
+    "kodaikanal": "Kodaikanal",
+    "darjeeling": "Darjeeling",
+    "gangtok": "Gangtok",
+    "shillong": "Shillong",
+    "guwahati": "Guwahati",
+    "patna": "Patna",
+    "ranchi": "Ranchi",
+    "jamshedpur": "Jamshedpur",
+    "dehradun": "Dehradun",
+    "haridwar": "Haridwar",
+    "rishikesh": "Rishikesh",
+    "chandigarh": "Chandigarh",
+    "amritsar": "Amritsar",
+    "jalandhar": "Jalandhar",
+    "jammu": "Jammu",
+    "srinagar": "Srinagar",
+    "leh": "Leh",
+    "ladakh": "Ladakh",
+    "manali": "Manali",
+    "dharamshala": "Dharamshala",
+    "shimla": "Shimla",
+    "dalhousie": "Dalhousie",
+    "kullu": "Kullu",
+}
+
+
+def _extract_city_from_hotel_name(hotel_name):
+    """从酒店名称中提取城市名称"""
+    if not hotel_name:
+        return ""
+    name_lower = str(hotel_name).lower()
+    for city_lower, city_display in CITY_NAME_MAP.items():
+        if city_lower in name_lower:
+            return city_display
+    return ""
+
+
 def _load_hotel_info(df):
     """从主数据提取酒店信息（去重）"""
     def _find_col(candidates):
@@ -236,6 +417,7 @@ def _load_hotel_info(df):
     star_col = _find_col(["酒店星级 Star Rating", "酒店星级", "Star Rating"])
     checkin_col = _find_col(["入住日期 Check-in Date", "入住日期 Check-in", "入住日期", "Check-in", "Check in"])
     checkout_col = _find_col(["离店日期 Check-out Date", "退房日期 Check-out", "离店日期", "退房日期", "Check-out", "Check out"])
+    city_col = _find_col(["城市 City", "城市", "City"])
 
     if not hotel_col:
         return pd.DataFrame()
@@ -253,6 +435,7 @@ def _load_hotel_info(df):
         star_val = str(row.get(star_col, "")).strip() if star_col else ""
         checkin_val = str(row.get(checkin_col, "")).strip() if checkin_col else ""
         checkout_val = str(row.get(checkout_col, "")).strip() if checkout_col else ""
+        city_val = str(row.get(city_col, "")).strip() if city_col else ""
         for h in hotels:
             row_data = {hotel_col: h}
             if country_col:
@@ -269,6 +452,12 @@ def _load_hotel_info(df):
                 row_data[checkin_col] = checkin_val
             if checkout_col:
                 row_data[checkout_col] = checkout_val
+            if city_col:
+                row_data[city_col] = city_val
+            else:
+                extracted_city = _extract_city_from_hotel_name(h)
+                if extracted_city:
+                    row_data["城市"] = extracted_city
             rows.append(row_data)
 
     if not rows:
@@ -407,7 +596,7 @@ def _merge_with_existing(existing_df, hotel_info, t):
     if t["col_checkout"] not in existing_df.columns:
         existing_df[t["col_checkout"]] = ""
 
-    # 用主数据回填已有酒店的星级、国家、销售团队、币种、Check in/Check out（仅当本地为空时）
+    # 用主数据回填已有酒店的星级、国家、销售团队、城市、币种、Check in/Check out（仅当本地为空时）
     hotel_info_map = {}
     for _, row in hotel_info.iterrows():
         hn = str(row.get(hotel_col, "")).strip()
@@ -417,6 +606,7 @@ def _merge_with_existing(existing_df, hotel_info, t):
             t["col_star"]: str(row.get(t["col_star"], "")).strip() if t["col_star"] in row.index else "",
             t["col_country"]: str(row.get(t["col_country"], "")).strip() if t["col_country"] in row.index else "",
             t["col_sales_team"]: str(row.get(t["col_sales_team"], "")).strip() if t["col_sales_team"] in row.index else "",
+            t["col_city"]: str(row.get(t["col_city"], "")).strip() if t["col_city"] in row.index else "",
             t["col_currency"]: str(row.get(t["col_currency"], "")).strip() if t["col_currency"] in row.index else "",
             t["col_checkin"]: str(row.get(t["col_checkin"], "")).strip() if t["col_checkin"] in row.index else "",
             t["col_checkout"]: str(row.get(t["col_checkout"], "")).strip() if t["col_checkout"] in row.index else "",
@@ -426,7 +616,7 @@ def _merge_with_existing(existing_df, hotel_info, t):
         hn = str(row.get(hotel_col, "")).strip()
         if hn in hotel_info_map:
             info = hotel_info_map[hn]
-            for col_key in [t["col_star"], t["col_country"], t["col_sales_team"], t["col_currency"], t["col_checkin"], t["col_checkout"]]:
+            for col_key in [t["col_star"], t["col_country"], t["col_sales_team"], t["col_city"], t["col_currency"], t["col_checkin"], t["col_checkout"]]:
                 if col_key in existing_df.columns:
                     cur_val = str(row.get(col_key, "")).strip()
                     if (not cur_val or cur_val.lower() == "nan") and info[col_key]:
