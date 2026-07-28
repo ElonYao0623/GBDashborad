@@ -912,7 +912,9 @@ def render_price_compare(df):
         editor_key = f"hotel_editor_{i}_{hotel_name}"
         
         with st.form(key=f"hotel_form_{i}_{hotel_name}", border=True):
-            hdr = st.columns([1, 5, 2, 1, 2, 2, 2, 2, 2, 2])
+            if order_id:
+                st.caption(f"📦 {t['col_order_id']}: {order_id}")
+            hdr = st.columns([1, 5, 1, 2, 2, 2, 2, 2, 2])
             with hdr[0]:
                 st.markdown(f"**# {i + 1}**")
             with hdr[1]:
@@ -921,41 +923,36 @@ def render_price_compare(df):
                     label_visibility="collapsed"
                 )
             with hdr[2]:
-                edited_order_id = st.text_input(
-                    t["col_order_id"], value=order_id, key=f"hotel_order_id_{i}_{hotel_name}",
-                    label_visibility="collapsed", placeholder=t["col_order_id"]
-                )
-            with hdr[3]:
                 edited_star = st.text_input(
                     t["col_star"], value=star, key=f"hotel_star_{i}_{hotel_name}",
                     label_visibility="collapsed", placeholder=t["col_star"]
                 )
-            with hdr[4]:
+            with hdr[3]:
                 edited_country = st.text_input(
                     t["col_country"], value=country, key=f"hotel_country_{i}_{hotel_name}",
                     label_visibility="collapsed", placeholder=t["col_country"]
                 )
-            with hdr[5]:
+            with hdr[4]:
                 edited_sales_team = st.text_input(
                     t["col_sales_team"], value=sales_team, key=f"hotel_sales_team_{i}_{hotel_name}",
                     label_visibility="collapsed", placeholder=t["col_sales_team"]
                 )
-            with hdr[6]:
+            with hdr[5]:
                 edited_city = st.text_input(
                     t["col_city"], value=city, key=f"hotel_city_{i}_{hotel_name}",
                     label_visibility="collapsed", placeholder=t["col_city"]
                 )
-            with hdr[7]:
+            with hdr[6]:
                 edited_currency = st.text_input(
                     t["col_currency"], value=currency, key=f"hotel_currency_{i}_{hotel_name}",
                     label_visibility="collapsed", placeholder=t["col_currency"]
                 )
-            with hdr[8]:
+            with hdr[7]:
                 edited_checkin = st.text_input(
                     t["col_checkin"], value=checkin, key=f"hotel_checkin_{i}_{hotel_name}",
                     label_visibility="collapsed", placeholder=t["col_checkin"]
                 )
-            with hdr[9]:
+            with hdr[8]:
                 edited_checkout = st.text_input(
                     t["col_checkout"], value=checkout, key=f"hotel_checkout_{i}_{hotel_name}",
                     label_visibility="collapsed", placeholder=t["col_checkout"]
@@ -1055,7 +1052,7 @@ def render_price_compare(df):
             saved_currency = st.session_state.get(f"hotel_currency_{i}_{hotel_name}", edited_currency)
             saved_checkin = st.session_state.get(f"hotel_checkin_{i}_{hotel_name}", edited_checkin)
             saved_checkout = st.session_state.get(f"hotel_checkout_{i}_{hotel_name}", edited_checkout)
-            saved_order_id = st.session_state.get(f"hotel_order_id_{i}_{hotel_name}", edited_order_id)
+            saved_order_id = st.session_state.get(f"hotel_order_id_{i}_{hotel_name}", order_id)
             
             for _, row in data_source.iterrows():
                 rebuilt_rows.append({
