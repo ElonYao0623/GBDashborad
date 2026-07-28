@@ -552,6 +552,8 @@ def render_create_order(df):
                         if order_no:
                             current_order_map[order_no] = row.to_dict()
                     
+                    duration_cols = list(STATUS_DURATION_COL_MAP.values())
+                    
                     for idx, row in sync_df.iterrows():
                         order_no = str(row.get("团单号", "")).strip()
                         new_status = str(row.get("状态", "")).strip()
@@ -561,6 +563,15 @@ def render_create_order(df):
                             old_status = str(current_row.get("状态", "")).strip()
                             old_last_update = str(current_row.get("最后更新时间", "")).strip()
                             
+                            # 先复制所有已有的状态持续时间数据
+                            for dc in duration_cols:
+                                existing_val = str(current_row.get(dc, "")).strip()
+                                if existing_val and (dc not in sync_df.columns or not sync_df.at[idx, dc]):
+                                    if dc not in sync_df.columns:
+                                        sync_df[dc] = ""
+                                    sync_df.at[idx, dc] = existing_val
+                            
+                            # 如果状态变更，记录上一状态持续天数
                             if new_status != old_status and old_status and old_last_update:
                                 try:
                                     for fmt in ["%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d"]:
@@ -571,23 +582,31 @@ def render_create_order(df):
                                             old_std_status = get_standard_status(old_status)
                                             duration_col = STATUS_DURATION_COL_MAP.get(old_std_status, "")
                                             if duration_col:
-                                                existing_val = str(current_row.get(duration_col, ""))
+                                                existing_val = str(current_row.get(duration_col, "")).strip()
                                                 if existing_val:
                                                     try:
                                                         existing_days = int(existing_val)
                                                         duration_days += existing_days
                                                     except ValueError:
                                                         pass
-                                                if duration_col in sync_df.columns:
-                                                    sync_df.at[idx, duration_col] = str(duration_days)
-                                                else:
+                                                if duration_col not in sync_df.columns:
                                                     sync_df[duration_col] = ""
-                                                    sync_df.at[idx, duration_col] = str(duration_days)
+                                                sync_df.at[idx, duration_col] = str(duration_days)
                                             break
                                         except ValueError:
                                             continue
                                 except:
                                     pass
+                        else:
+                            # 新订单，确保状态持续时间列存在
+                            for dc in duration_cols:
+                                if dc not in sync_df.columns:
+                                    sync_df[dc] = ""
+                    
+                    # 确保所有状态持续时间列都存在
+                    for dc in duration_cols:
+                        if dc not in sync_df.columns:
+                            sync_df[dc] = ""
                 
                 save_data(sync_df)
                 import pytz
