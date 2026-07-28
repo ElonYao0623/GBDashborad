@@ -9,6 +9,8 @@ from Hotel_list import render_hotel_list
 from price_compare import render_price_compare
 from price_compare_dashboard import render_price_compare_dashboard
 from sales_dashboard import render_sales_dashboard
+from Failed_dashboard import render_failed_dashboard
+from Success_dashboard import render_success_dashboard
 
 # 全局页面配置
 st.set_page_config(
@@ -29,6 +31,7 @@ USER_ACCOUNTS = {
     "OP": {"password": "8888", "role": "OP", "team": None},
     "MY": {"password": "my1234", "role": "sales", "team": "MY"},
     "ID": {"password": "id1234", "role": "sales", "team": "ID"},
+    "MEA": {"password": "mea1234", "role": "sales", "team": "MEA"}
 }
 
 if st.session_state["user_role"] is None:
@@ -335,8 +338,10 @@ TEXT = {
         "list_manage": "团单列表管理",
         "hotel_list": "优势酒店名单",
         "price_compare": "比价",
-        "price_dashboard": "比价看板",
+        "price_dashboard": "比价记录看板",
         "sales_dashboard": "销售团队统计",
+        "failed_dashboard": "团房失败分析",
+        "success_dashboard": "团房成功统计",
         "back": "← 返回数据统计看板"
     },
     "en": {
@@ -353,6 +358,8 @@ TEXT = {
         "price_compare": "Price Compare",
         "price_dashboard": "Price Dashboard",
         "sales_dashboard": "Sales Team Stats",
+        "failed_dashboard": "Failed Booking Analysis",
+        "success_dashboard": "Success Booking Stats",
         "back": "← Back to Dashboard"
     }
 }
@@ -395,6 +402,8 @@ with st.sidebar:
     all_pages = {
         "dashboard": t["dash"],
         "sales_dashboard": t["sales_dashboard"],
+        "success_dashboard": t["success_dashboard"],
+        "failed_dashboard": t["failed_dashboard"],
         "flow": t["flow"],
         "hotel_list": t["hotel_list"],
         "price_dashboard": t["price_dashboard"],
@@ -405,7 +414,7 @@ with st.sidebar:
     if user_role == "admin":
         show_pages = list(all_pages.keys())
     elif user_role == "OP":
-        show_pages = ["dashboard", "sales_dashboard", "flow", "hotel_list", "price_dashboard"]
+        show_pages = ["dashboard", "sales_dashboard", "success_dashboard", "failed_dashboard", "flow", "hotel_list", "price_dashboard"]
     elif user_role == "sales":
         show_pages = ["dashboard", "flow", "hotel_list", "price_dashboard"]
     else:
@@ -439,6 +448,10 @@ else:
         render_dashboard(df)
     elif active_p == "sales_dashboard":
         render_sales_dashboard(df)
+    elif active_p == "success_dashboard":
+        render_success_dashboard(df)
+    elif active_p == "failed_dashboard":
+        render_failed_dashboard(df)
     elif active_p == "flow":
         render_workflow_view(df)
     elif active_p == "new_order" and user_role == "admin":
