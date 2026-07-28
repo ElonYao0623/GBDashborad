@@ -223,6 +223,52 @@ def _split_hotel_names(name):
     return parts
 
 
+def _load_order_id_mapping():
+    """从主数据加载酒店名称到团单号的映射"""
+    MAIN_FILE = DATA_FILE
+    if not os.path.exists(MAIN_FILE):
+        return {}
+    
+    try:
+        df = pd.read_csv(MAIN_FILE, encoding="utf-8-sig", dtype=str).fillna("")
+    except Exception:
+        return {}
+    
+    order_id_col = None
+    for c in ["团单号", "Booking No"]:
+        if c in df.columns:
+            order_id_col = c
+            break
+    
+    hotel_col = None
+    for c in ["酒店名称 Hotel Name", "酒店名称", "Hotel Name"]:
+        if c in df.columns:
+            hotel_col = c
+            break
+    
+    if not order_id_col or not hotel_col:
+        return {}
+    
+    mapping = {}
+    for _, row in df.iterrows():
+        raw_name = row.get(hotel_col, "")
+        order_id = str(row.get(order_id_col, "")).strip()
+        if not order_id:
+            continue
+        hotels = _split_hotel_names(raw_name)
+        for h in hotels:
+            h = h.strip()
+            if h:
+                if h not in mapping:
+                    mapping[h] = set()
+                mapping[h].add(order_id)
+    
+    for h in mapping:
+        mapping[h] = ", ".join(sorted(mapping[h]))
+    
+    return mapping
+
+
 CITY_NAME_MAP = {
     "xi'an": "Xi'an",
     "xian": "Xi'an",
@@ -803,7 +849,12 @@ def render_price_compare(df):
     if sel_city.strip():
         filtered_df = filtered_df[filtered_df[t["col_city"]].astype(str).str.contains(_re.escape(sel_city.strip()), case=False, na=False, regex=True)]
     if sel_order_id.strip():
-        filtered_df = filtered_df[filtered_df[t["col_order_id"]].astype(str).str.contains(_re.escape(sel_order_id.strip()), case=False, na=False, regex=True)]
+        order_id_mapping = _load_order_id_mapping()
+        matching_hotels = [h for h, oids in order_id_mapping.items() if sel_order_id.strip() in oids]
+        if matching_hotels:
+            filtered_df = filtered_df[filtered_df[t["col_hotel"]].astype(str).str.strip().isin(matching_hotels)]
+        else:
+            filtered_df = filtered_df.iloc[0:0]
     
     if sel_checkin:
         drop_indices = []
