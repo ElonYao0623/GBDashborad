@@ -546,7 +546,11 @@ def render_create_order(df):
                         sync_df = sync_df[~sync_df["团单号"].isin(local_only_orders)]
                     
                     current_time = datetime.now().strftime("%Y-%m-%d")
-                    current_order_map = current_df.set_index("团单号").to_dict(orient="index")
+                    current_order_map = {}
+                    for _, row in current_df.iterrows():
+                        order_no = str(row.get("团单号", "")).strip()
+                        if order_no:
+                            current_order_map[order_no] = row.to_dict()
                     
                     for idx, row in sync_df.iterrows():
                         order_no = str(row.get("团单号", "")).strip()
