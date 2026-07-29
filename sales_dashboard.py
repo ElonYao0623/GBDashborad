@@ -148,7 +148,7 @@ def render_sales_dashboard(df):
                     wedgeprops=dict(width=0.65, edgecolor="white", linewidth=2),
                     textprops=dict(fontproperties=font_prop, fontsize=5, fontweight="bold", color="black")
                 )
-                ax.set_title(t["status_pie_title"], fontproperties=font_prop, fontsize=5, fontweight="bold", pad=15)
+                ax.set_title(t["status_pie_title"], fontproperties=font_prop, fontsize=7, fontweight="bold", pad=15)
                 ax.axis("equal")
                 ax.set_position([0.15, 0.1, 0.7, 0.7])
                 st.pyplot(fig, use_container_width=True)
@@ -236,7 +236,7 @@ def render_sales_dashboard(df):
                     wedgeprops=dict(width=0.65, edgecolor="white", linewidth=2),
                     textprops=dict(fontproperties=font_prop, fontsize=5, fontweight="bold", color="black")
                 )
-                ax.set_title(t["status_pie_title"], fontproperties=font_prop, fontsize=5, fontweight="bold", pad=15)
+                ax.set_title(t["status_pie_title"], fontproperties=font_prop, fontsize=7, fontweight="bold", pad=15)
                 ax.axis("equal")
                 ax.set_position([0.15, 0.1, 0.7, 0.7])
                 st.pyplot(fig, use_container_width=True)
@@ -276,69 +276,71 @@ def render_sales_dashboard(df):
         my_sales_cnt = my_df["sales_name"].value_counts()
         
         with col1:
-            st.subheader(t["my_chart_title"])
-            st.metric(t["total_order"], my_total)
-            if my_total > 0:
-                fig_my, ax_my = plt.subplots(figsize=(3, 3))
-                my_colors = [
-                    "#4f46e5", "#8b5cf6", "#a855f7", "#d946ef", 
-                    "#ec4899", "#f43f5e", "#f97316", "#eab308",
-                    "#22c55e", "#14b8a6", "#06b6d4", "#3b82f6"
-                ]
-                ax_my.pie(
-                    my_sales_cnt.values,
-                    labels=my_sales_cnt.index,
-                    autopct=lambda p: f"{p:.0f}%",
-                    startangle=90,
-                    colors=my_colors[:len(my_sales_cnt)],
-                    textprops={"fontproperties": font_prop, "fontsize": 7},
-                    wedgeprops={"edgecolor": "#ffffff", "linewidth": 2}
-                )
-                ax_my.axis("equal")
-                st.pyplot(fig_my)
-                plt.close(fig_my)
-            else:
-                st.info(t["empty_tip"])
-            
-            # 添加团队按钮
-            if st.button(f"📊 {t['team_status_title']}: MY", key="team_my_btn", use_container_width=True, disabled=my_total == 0):
-                st.session_state["selected_team"] = "MY"
-                st.rerun()
+            with st.container(height=420):
+                st.subheader(t["my_chart_title"])
+                st.metric(t["total_order"], my_total)
+                if my_total > 0:
+                    fig_my, ax_my = plt.subplots(figsize=(3, 3))
+                    my_colors = [
+                        "#4f46e5", "#8b5cf6", "#a855f7", "#d946ef", 
+                        "#ec4899", "#f43f5e", "#f97316", "#eab308",
+                        "#22c55e", "#14b8a6", "#06b6d4", "#3b82f6"
+                    ]
+                    ax_my.pie(
+                        my_sales_cnt.values,
+                        labels=my_sales_cnt.index,
+                        autopct=lambda p: f"{p:.0f}%",
+                        startangle=90,
+                        colors=my_colors[:len(my_sales_cnt)],
+                        textprops={"fontproperties": font_prop, "fontsize": 6},
+                        wedgeprops={"edgecolor": "#ffffff", "linewidth": 2}
+                    )
+                    ax_my.axis("equal")
+                    st.pyplot(fig_my)
+                    plt.close(fig_my)
+                else:
+                    st.info(t["empty_tip"])
+                
+                # 添加团队按钮
+                if st.button(f"📊 {t['team_status_title']}: MY", key="team_my_btn", use_container_width=True, disabled=my_total == 0):
+                    st.session_state["selected_team"] = "MY"
+                    st.rerun()
         
         id_df = unique_df[unique_df["team_temp"] == "ID"]
         id_total = len(id_df)
         id_sales_cnt = id_df["sales_name"].value_counts()
         
         with col2:
-            st.subheader(t["id_chart_title"])
-            st.metric(t["total_order"], id_total)
-            if id_total > 0:
-                fig_id, ax_id = plt.subplots(figsize=(3, 3))
-                id_colors = [
-                    "#10b981", "#059669", "#047857", "#065f46",
-                    "#0ea5e9", "#0284c7", "#0369a1", "#075985",
-                    "#f59e0b", "#d97706", "#b45309", "#92400e",
-                    "#8b5cf6", "#7c3aed", "#6d28d9", "#5b21b6"
-                ]
-                ax_id.pie(
-                    id_sales_cnt.values,
-                    labels=id_sales_cnt.index,
-                    autopct=lambda p: f"{p:.0f}%",
-                    startangle=90,
-                    colors=id_colors[:len(id_sales_cnt)],
-                    textprops={"fontproperties": font_prop, "fontsize": 7},
-                    wedgeprops={"edgecolor": "#ffffff", "linewidth": 2}
-                )
-                ax_id.axis("equal")
-                st.pyplot(fig_id)
-                plt.close(fig_id)
-            else:
-                st.info(t["empty_tip"])
-            
-            # 添加团队按钮
-            if st.button(f"📊 {t['team_status_title']}: ID", key="team_id_btn", use_container_width=True, disabled=id_total == 0):
-                st.session_state["selected_team"] = "ID"
-                st.rerun()
+            with st.container(height=420):
+                st.subheader(t["id_chart_title"])
+                st.metric(t["total_order"], id_total)
+                if id_total > 0:
+                    fig_id, ax_id = plt.subplots(figsize=(3, 3))
+                    id_colors = [
+                        "#10b981", "#059669", "#047857", "#065f46",
+                        "#0ea5e9", "#0284c7", "#0369a1", "#075985",
+                        "#f59e0b", "#d97706", "#b45309", "#92400e",
+                        "#8b5cf6", "#7c3aed", "#6d28d9", "#5b21b6"
+                    ]
+                    ax_id.pie(
+                        id_sales_cnt.values,
+                        labels=id_sales_cnt.index,
+                        autopct=lambda p: f"{p:.0f}%",
+                        startangle=90,
+                        colors=id_colors[:len(id_sales_cnt)],
+                        textprops={"fontproperties": font_prop, "fontsize": 6},
+                        wedgeprops={"edgecolor": "#ffffff", "linewidth": 2}
+                    )
+                    ax_id.axis("equal")
+                    st.pyplot(fig_id)
+                    plt.close(fig_id)
+                else:
+                    st.info(t["empty_tip"])
+                
+                # 添加团队按钮
+                if st.button(f"📊 {t['team_status_title']}: ID", key="team_id_btn", use_container_width=True, disabled=id_total == 0):
+                    st.session_state["selected_team"] = "ID"
+                    st.rerun()
         
         st.divider()
         

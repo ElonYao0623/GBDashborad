@@ -213,14 +213,15 @@ def render_price_compare_dashboard():
             return
 
     base_cols = [
-        t["col_hotel"], t["col_star"], t["col_country"], t["col_sales_team"], t["col_city"],
+        t["col_hotel"], t["col_order_id"], t["col_star"], t["col_country"], t["col_sales_team"], t["col_city"],
         t["col_currency"], t["col_checkin"], t["col_checkout"],
         t["col_room_type"], t["col_group_rate"], t["col_price"]
     ]
     
     all_platforms = []
+    exclude_cols = [t["col_order_id"]]
     for col in price_df.columns:
-        if col not in base_cols:
+        if col not in base_cols and col not in exclude_cols:
             all_platforms.append(col)
     
     for key in base_cols:

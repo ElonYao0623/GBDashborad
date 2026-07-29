@@ -557,10 +557,12 @@ def render_create_order(df):
                     for idx, row in sync_df.iterrows():
                         order_no = str(row.get("团单号", "")).strip()
                         new_status = str(row.get("状态", "")).strip()
+                        new_std_status = get_standard_status(new_status)
                         
                         if order_no in current_order_map:
                             current_row = current_order_map[order_no]
                             old_status = str(current_row.get("状态", "")).strip()
+                            old_std_status = get_standard_status(old_status)
                             old_last_update = str(current_row.get("最后更新时间", "")).strip()
                             
                             # 先复制所有已有的状态持续时间数据
@@ -571,15 +573,14 @@ def render_create_order(df):
                                         sync_df[dc] = ""
                                     sync_df.at[idx, dc] = existing_val
                             
-                            # 如果状态变更，记录上一状态持续天数
-                            if new_status != old_status and old_status and old_last_update:
+                            # 如果状态变更，记录上一状态持续天数（使用标准状态比较）
+                            if new_std_status != old_std_status and old_std_status and old_last_update:
                                 try:
                                     for fmt in ["%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d"]:
                                         try:
                                             old_date = datetime.strptime(old_last_update, fmt).date()
                                             new_date = datetime.strptime(current_time, "%Y-%m-%d").date()
                                             duration_days = (new_date - old_date).days
-                                            old_std_status = get_standard_status(old_status)
                                             duration_col = STATUS_DURATION_COL_MAP.get(old_std_status, "")
                                             if duration_col:
                                                 existing_val = str(current_row.get(duration_col, "")).strip()
@@ -592,11 +593,12 @@ def render_create_order(df):
                                                 if duration_col not in sync_df.columns:
                                                     sync_df[duration_col] = ""
                                                 sync_df.at[idx, duration_col] = str(duration_days)
+                                                print(f"[状态持续天数记录] 团单号:{order_no}, 旧状态:{old_status}({old_std_status}), 持续{duration_days}天 -> {duration_col}")
                                             break
                                         except ValueError:
                                             continue
-                                except:
-                                    pass
+                                except Exception as e:
+                                    print(f"[状态持续天数记录错误] {order_no}: {e}")
                         else:
                             # 新订单，确保状态持续时间列存在
                             for dc in duration_cols:
