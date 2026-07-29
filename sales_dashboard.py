@@ -17,7 +17,9 @@ PAGE_TEXT = {
         "back_btn": "← 返回团队统计",
         "sales_status_title": "销售订单状态统计",
         "status_pie_title": "订单状态占比",
-        "click_tip": "💡 点击销售姓名查看详细状态统计"
+        "click_tip": "💡 点击销售姓名查看详细状态统计",
+        "team_status_title": "团队订单状态占比",
+        "team_btn_tip": "💡 点击团队名称查看订单状态占比"
     },
     "en": {
         "title": "Sales Team Statistics",
@@ -30,7 +32,9 @@ PAGE_TEXT = {
         "back_btn": "← Back to Team View",
         "sales_status_title": "Sales Order Status Stats",
         "status_pie_title": "Status Ratio",
-        "click_tip": "💡 Click on sales name to view detailed status stats"
+        "click_tip": "💡 Click on sales name to view detailed status stats",
+        "team_status_title": "Team Order Status Ratio",
+        "team_btn_tip": "💡 Click on team name to view order status ratio"
     }
 }
 
@@ -76,10 +80,104 @@ def render_sales_dashboard(df):
         st.info(t["empty_tip"])
         return
     
-    # 检查是否在查看单个销售详情
+    # 检查是否在查看单个团队状态详情
+    selected_team = st.session_state.get("selected_team", None)
     selected_sales = st.session_state.get("selected_sales", None)
     
-    if selected_sales:
+    if selected_team:
+        # 显示团队的订单状态统计
+        if st.button(t["back_btn"], type="primary"):
+            st.session_state["selected_team"] = None
+            st.rerun()
+        
+        st.subheader(f"{t['team_status_title']}: {selected_team}")
+        
+        # 筛选该团队的数据
+        team_data = unique_df[unique_df["team_temp"] == selected_team]
+        team_total = len(team_data)
+        
+        if team_total == 0:
+            st.info(t["empty_tip"])
+            return
+        
+        st.metric(t["total_order"], team_total)
+        st.divider()
+        
+        # 统计各状态数量
+        mask_valid = team_data["标准状态"].isin(WORKFLOW_STEPS_ZH)
+        valid_df = team_data[mask_valid].copy()
+        
+        status_counts = {}
+        for std_status in WORKFLOW_STEPS_ZH:
+            display_text = get_workflow_step_text(lang, std_status)
+            status_counts[display_text] = 0
+        
+        std_counts = valid_df.groupby("标准状态").size()
+        for std_status in WORKFLOW_STEPS_ZH:
+            display_text = get_workflow_step_text(lang, std_status)
+            status_counts[display_text] = int(std_counts.get(std_status, 0))
+        
+        non_zero = {k: v for k, v in status_counts.items() if v > 0}
+        
+        labels = list(non_zero.keys())
+        values = list(non_zero.values())
+        
+        if not values or sum(values) == 0:
+            st.info(t["empty_tip"])
+        else:
+            col_pie, col_info = st.columns([3, 1])
+            with col_pie:
+                fig, ax = plt.subplots(figsize=(2, 2))
+                fig.patch.set_facecolor("white")
+                team_colors = {
+                    "MY": ["#4f46e5", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899", "#f43f5e", "#f97316", "#eab308", "#22c55e", "#14b8a6", "#06b6d4", "#3b82f6"],
+                    "ID": ["#10b981", "#059669", "#047857", "#065f46", "#0ea5e9", "#0284c7", "#0369a1", "#075985", "#f59e0b", "#d97706", "#b45309", "#92400e"]
+                }
+                if selected_team in team_colors:
+                    colors_list = team_colors[selected_team][:len(labels)]
+                else:
+                    colors_list = plt.cm.tab20(np.linspace(0, 1, len(labels)))
+                total_v = sum(values)
+                labels_pct = [f"{v/total_v*100:.1f}%" for v in values]
+                wedges, texts = ax.pie(
+                    values,
+                    labels=labels_pct,
+                    labeldistance=1.15,
+                    colors=colors_list,
+                    startangle=90,
+                    wedgeprops=dict(width=0.65, edgecolor="white", linewidth=2),
+                    textprops=dict(fontproperties=font_prop, fontsize=5, fontweight="bold", color="black")
+                )
+                ax.set_title(t["status_pie_title"], fontproperties=font_prop, fontsize=5, fontweight="bold", pad=15)
+                ax.axis("equal")
+                ax.set_position([0.15, 0.1, 0.7, 0.7])
+                st.pyplot(fig, use_container_width=True)
+                plt.close(fig)
+            with col_info:
+                st.metric(t["total_order"], team_total)
+                st.divider()
+                for i, (label, value) in enumerate(zip(labels, values)):
+                    pct = (value / team_total) * 100
+                    st.markdown(f"**{label}**")
+                    st.caption(f"{value}单 ({pct:.1f}%)")
+            
+            # 显示状态详情表格
+            st.subheader(t["status_pie_title"])
+            status_detail = []
+            for std_status in WORKFLOW_STEPS_ZH:
+                display_text = get_workflow_step_text(lang, std_status)
+                cnt = status_counts[display_text]
+                if cnt > 0:
+                    pct = (cnt / team_total) * 100
+                    status_detail.append({
+                        "状态": display_text,
+                        t["count"]: cnt,
+                        t["percentage"]: f"{pct:.1f}%"
+                    })
+            
+            if status_detail:
+                st.dataframe(pd.DataFrame(status_detail), use_container_width=True)
+    elif selected_sales:
         # 显示单个销售的订单状态统计
         if st.button(t["back_btn"], type="primary"):
             st.session_state["selected_sales"] = None
@@ -124,7 +222,7 @@ def render_sales_dashboard(df):
         else:
             col_pie, col_info = st.columns([3, 1])
             with col_pie:
-                fig, ax = plt.subplots(figsize=(4, 4))
+                fig, ax = plt.subplots(figsize=(3, 3))
                 fig.patch.set_facecolor("white")
                 colors_list = plt.cm.tab20(np.linspace(0, 1, len(labels)))
                 total_v = sum(values)
@@ -136,9 +234,9 @@ def render_sales_dashboard(df):
                     colors=colors_list,
                     startangle=90,
                     wedgeprops=dict(width=0.65, edgecolor="white", linewidth=2),
-                    textprops=dict(fontproperties=font_prop, fontsize=7, fontweight="bold", color="black")
+                    textprops=dict(fontproperties=font_prop, fontsize=5, fontweight="bold", color="black")
                 )
-                ax.set_title(t["status_pie_title"], fontproperties=font_prop, fontsize=7, fontweight="bold", pad=15)
+                ax.set_title(t["status_pie_title"], fontproperties=font_prop, fontsize=5, fontweight="bold", pad=15)
                 ax.axis("equal")
                 ax.set_position([0.15, 0.1, 0.7, 0.7])
                 st.pyplot(fig, use_container_width=True)
@@ -169,7 +267,7 @@ def render_sales_dashboard(df):
                 st.dataframe(pd.DataFrame(status_detail), use_container_width=True)
     else:
         # 显示团队视图
-        st.markdown(f"<div style='color:#6b7280; font-size:14px; margin-bottom:10px'>{t['click_tip']}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='color:#6b7280; font-size:14px; margin-bottom:10px'>{t['team_btn_tip']}</div>", unsafe_allow_html=True)
         
         col1, col2 = st.columns(2)
         
@@ -181,7 +279,7 @@ def render_sales_dashboard(df):
             st.subheader(t["my_chart_title"])
             st.metric(t["total_order"], my_total)
             if my_total > 0:
-                fig_my, ax_my = plt.subplots(figsize=(4, 4))
+                fig_my, ax_my = plt.subplots(figsize=(3, 3))
                 my_colors = [
                     "#4f46e5", "#8b5cf6", "#a855f7", "#d946ef", 
                     "#ec4899", "#f43f5e", "#f97316", "#eab308",
@@ -201,6 +299,11 @@ def render_sales_dashboard(df):
                 plt.close(fig_my)
             else:
                 st.info(t["empty_tip"])
+            
+            # 添加团队按钮
+            if st.button(f"📊 {t['team_status_title']}: MY", key="team_my_btn", use_container_width=True, disabled=my_total == 0):
+                st.session_state["selected_team"] = "MY"
+                st.rerun()
         
         id_df = unique_df[unique_df["team_temp"] == "ID"]
         id_total = len(id_df)
@@ -210,7 +313,7 @@ def render_sales_dashboard(df):
             st.subheader(t["id_chart_title"])
             st.metric(t["total_order"], id_total)
             if id_total > 0:
-                fig_id, ax_id = plt.subplots(figsize=(4, 4))
+                fig_id, ax_id = plt.subplots(figsize=(3, 3))
                 id_colors = [
                     "#10b981", "#059669", "#047857", "#065f46",
                     "#0ea5e9", "#0284c7", "#0369a1", "#075985",
@@ -223,7 +326,7 @@ def render_sales_dashboard(df):
                     autopct=lambda p: f"{p:.0f}%",
                     startangle=90,
                     colors=id_colors[:len(id_sales_cnt)],
-                    textprops={"fontproperties": font_prop, "fontsize": 9},
+                    textprops={"fontproperties": font_prop, "fontsize": 7},
                     wedgeprops={"edgecolor": "#ffffff", "linewidth": 2}
                 )
                 ax_id.axis("equal")
@@ -231,6 +334,11 @@ def render_sales_dashboard(df):
                 plt.close(fig_id)
             else:
                 st.info(t["empty_tip"])
+            
+            # 添加团队按钮
+            if st.button(f"📊 {t['team_status_title']}: ID", key="team_id_btn", use_container_width=True, disabled=id_total == 0):
+                st.session_state["selected_team"] = "ID"
+                st.rerun()
         
         st.divider()
         
