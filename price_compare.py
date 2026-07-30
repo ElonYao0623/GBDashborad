@@ -1,6 +1,6 @@
 """比价功能
 
-从主数据读取酒店名称、国家、报价币种、房型要求，
+从飞书电子表格读取比价数据，
 手动填写团房组底价及各平台价格进行对比
 """
 import streamlit as st
@@ -736,40 +736,8 @@ def render_price_compare(df):
                 print(f"[比价同步] 从飞书更新失败: {str(e)}")
             st.rerun()
 
-    # 加载主数据的酒店信息
-    hotel_info = _load_hotel_info(df)
-    if hotel_info.empty or hotel_info.columns.empty:
-        st.warning(t["empty_tip"])
-        return
-
-    # 重命名列为主表头
-    col_map = {}
-    hotel_col = None
-    for c in hotel_info.columns:
-        if c in ["酒店名称 Hotel Name", "酒店名称", "Hotel Name"]:
-            col_map[c] = t["col_hotel"]
-            hotel_col = c
-        elif c in ["国家 Country", "国家", "Country"]:
-            col_map[c] = t["col_country"]
-        elif c in ["销售团队 Salesteam", "销售团队", "Salesteam", "Sales Team"]:
-            col_map[c] = t["col_sales_team"]
-        elif c in ["城市 City", "城市", "City"]:
-            col_map[c] = t["col_city"]
-        elif c in ["报价币种 Currency", "报价币种", "Currency"]:
-            col_map[c] = t["col_currency"]
-        elif c in ["房型要求 Room Type", "房型要求", "Room Type"]:
-            col_map[c] = t["col_room_type"]
-        elif c in ["酒店星级 Star Rating", "酒店星级", "Star Rating"]:
-            col_map[c] = t["col_star"]
-        elif c in ["入住日期 Check-in Date", "入住日期", "Check In", "Check-in"]:
-            col_map[c] = t["col_checkin"]
-        elif c in ["离店日期 Check-out Date", "退房日期", "离店日期", "Check Out", "Check-out"]:
-            col_map[c] = t["col_checkout"]
-    hotel_info = hotel_info.rename(columns=col_map)
-
-    # 加载已保存的比价数据并合并（传递t用于列名规范化）
-    existing = _load_price_data(t)
-    merged = _merge_with_existing(existing, hotel_info, t)
+    # 直接从飞书或本地加载比价数据（不再从order manage同步）
+    merged = _load_price_data(t)
 
     if merged.empty:
         st.warning(t["empty_tip"])
