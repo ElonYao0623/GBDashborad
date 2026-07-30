@@ -286,7 +286,8 @@ def _fetch_feishu_sheet(config_key, label):
 
     for i, col in enumerate(df.columns):
         df.iloc[:, i] = df.iloc[:, i].apply(lambda x: _parse_feishu_cell(x))
-        df.iloc[:, i] = df.iloc[:, i].astype(str).str.strip().str.replace(r"[\n\r]", "", regex=True)
+        # 先填充 NaN 再转换为字符串，避免类型推断问题
+        df.iloc[:, i] = df.iloc[:, i].fillna("").astype(str).str.strip().str.replace(r"[\n\r]", "", regex=True)
 
     df = df.replace(["nan", "None", "[]"], "")
 
