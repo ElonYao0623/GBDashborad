@@ -531,11 +531,12 @@ def render_create_order(df):
                 }
                 sync_df = sync_df.rename(columns=col_mapping)
                 
-                sync_df["团单号"] = sync_df["团单号"].astype(str).str.strip()
+                # 处理团单号列，确保转换为字符串，处理 NaN 值
+                sync_df["团单号"] = sync_df["团单号"].fillna("").astype(str).str.strip()
                 
                 current_df = load_data()
                 if not current_df.empty:
-                    current_df["团单号"] = current_df["团单号"].astype(str).str.strip()
+                    current_df["团单号"] = current_df["团单号"].fillna("").astype(str).str.strip()
                     
                     feishu_order_ids = set(sync_df["团单号"].dropna().tolist())
                     current_order_ids = set(current_df["团单号"].dropna().tolist())
@@ -568,7 +569,7 @@ def render_create_order(df):
                             # 先复制所有已有的状态持续时间数据
                             for dc in duration_cols:
                                 existing_val = str(current_row.get(dc, "")).strip()
-                                if existing_val and (dc not in sync_df.columns or not sync_df.at[idx, dc]):
+                                if existing_val:
                                     if dc not in sync_df.columns:
                                         sync_df[dc] = ""
                                     sync_df.at[idx, dc] = existing_val
