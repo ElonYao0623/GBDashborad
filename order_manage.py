@@ -242,34 +242,61 @@ def render_order_manage(df, user_team=None):
                         ops_notes_input = st.text_input("运营备注 Ops Notes", value=get_val("运营备注 Ops Notes"))
 
                     if st.form_submit_button("保存修改"):
-                        row = full_df.loc[origin_index]
+                        row = full_df.loc[origin_index].copy()
                         old_status = safe_str(row.get("状态", ""))
+                        old_std_status = get_standard_status(old_status)
                         old_last_update = safe_str(row.get("最后更新时间", ""))
                         current_time = datetime.now().strftime("%Y-%m-%d")
                         
-                        if status_input != old_status and old_status and old_last_update:
+                        # 调试日志
+                        print(f"[状态持续天数调试] 团单号:{order_no}")
+                        print(f"[状态持续天数调试] 旧状态:{old_status} -> 标准:{old_std_status}")
+                        print(f"[状态持续天数调试] 新状态:{status_input}")
+                        print(f"[状态持续天数调试] 最后更新时间:{old_last_update}")
+                        print(f"[状态持续天数调试] 条件检查: status_input != old_std_status = {status_input != old_std_status}, old_std_status = {bool(old_std_status)}, old_last_update = {bool(old_last_update)}")
+                        
+                        # 使用标准状态进行比较
+                        if status_input != old_std_status and old_std_status and old_last_update:
+                            print(f"[状态持续天数调试] 状态变更检测到，开始计算持续天数")
                             try:
+                                duration_days = 0
+                                parsed = False
                                 for fmt in ["%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d"]:
                                     try:
                                         old_date = datetime.strptime(old_last_update, fmt).date()
                                         new_date = datetime.strptime(current_time, "%Y-%m-%d").date()
                                         duration_days = (new_date - old_date).days
-                                        old_std_status = get_standard_status(old_status)
-                                        duration_col = STATUS_DURATION_COL_MAP.get(old_std_status, "")
-                                        if duration_col:
-                                            existing_val = safe_str(row.get(duration_col, ""))
-                                            if existing_val:
-                                                try:
-                                                    existing_days = int(existing_val)
-                                                    duration_days += existing_days
-                                                except ValueError:
-                                                    pass
-                                            row[duration_col] = str(duration_days)
+                                        parsed = True
+                                        print(f"[状态持续天数调试] 日期解析成功: 旧日期:{old_date}, 新日期:{new_date}, 间隔:{duration_days}天")
                                         break
                                     except ValueError:
                                         continue
-                            except:
-                                pass
+                                
+                                if parsed:
+                                    duration_col = STATUS_DURATION_COL_MAP.get(old_std_status, "")
+                                    print(f"[状态持续天数调试] 目标列:{duration_col}")
+                                    if duration_col:
+                                        # 确保列存在
+                                        if duration_col not in full_df.columns:
+                                            full_df[duration_col] = ""
+                                        existing_val = safe_str(row.get(duration_col, ""))
+                                        print(f"[状态持续天数调试] 现有值:{existing_val}")
+                                        if existing_val:
+                                            try:
+                                                existing_days = int(existing_val)
+                                                duration_days += existing_days
+                                            except ValueError:
+                                                pass
+                                        row[duration_col] = str(duration_days)
+                                        print(f"[状态持续天数调试] 写入值:{duration_days}天 -> {duration_col}")
+                                    else:
+                                        print(f"[状态持续天数调试] 未找到状态列映射: {old_std_status}")
+                                else:
+                                    print(f"[状态持续天数调试] 日期解析失败: {old_last_update}")
+                            except Exception as e:
+                                print(f"[状态持续天数记录错误] {e}")
+                        else:
+                            print(f"[状态持续天数调试] 条件不满足，跳过状态持续天数记录")
                         
                         row["团单号"] = order_no_input
                         row["客户名称 Customer Name"] = customer
