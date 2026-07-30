@@ -1,10 +1,11 @@
 """优势酒店名单统计
 
-从主数据筛选团房成功且运营备注为 10% 的优势酒店
+从主数据筛选团房成功且运营备注为 10% 的优势酒店，
+国家和城市字段从Price Dashboard（飞书比价表格）读取
 """
 import streamlit as st
 import pandas as pd
-from config import get_standard_status
+from config import get_standard_status, fetch_feishu_price_table
 
 PAGE_TEXT = {
     "zh": {
@@ -41,6 +42,55 @@ def _detect_column(df, candidates):
             if candidate.strip() == col.strip() or candidate.lower() == col.lower():
                 return col
     return None
+
+
+def _load_hotel_location_from_price():
+    """从Price Dashboard（飞书比价表格）获取酒店的国家和城市信息"""
+    try:
+        feishu_df = fetch_feishu_price_table()
+        if feishu_df.empty:
+            return {}
+        
+        # 标准化列名
+        col_map = {}
+        for c in feishu_df.columns:
+            if c in ["酒店名称", "Hotel Name", "酒店"]:
+                col_map[c] = "酒店名称"
+            elif c in ["国家", "Country"]:
+                col_map[c] = "国家"
+            elif c in ["城市", "City"]:
+                col_map[c] = "城市"
+        feishu_df = feishu_df.rename(columns=col_map)
+        
+        # 确保必要列存在
+        if "酒店名称" not in feishu_df.columns:
+            return {}
+        
+        # 填充空值并转换为字符串
+        feishu_df["酒店名称"] = feishu_df["酒店名称"].apply(lambda x: str(x).strip() if pd.notna(x) else "")
+        feishu_df["国家"] = feishu_df.get("国家", pd.Series(dtype=str)).apply(lambda x: str(x).strip() if pd.notna(x) else "")
+        feishu_df["城市"] = feishu_df.get("城市", pd.Series(dtype=str)).apply(lambda x: str(x).strip() if pd.notna(x) else "")
+        
+        # 去除空酒店名
+        feishu_df = feishu_df[feishu_df["酒店名称"] != ""]
+        
+        # 按酒店名称去重，保留第一个
+        feishu_df = feishu_df.drop_duplicates(subset=["酒店名称"], keep="first")
+        
+        # 创建映射字典
+        location_map = {}
+        for _, row in feishu_df.iterrows():
+            hotel_name = row["酒店名称"]
+            location_map[hotel_name] = {
+                "国家": row.get("国家", ""),
+                "城市": row.get("城市", "")
+            }
+        
+        print(f"[Hotel List] 从Price Dashboard加载了 {len(location_map)} 个酒店的位置信息")
+        return location_map
+    except Exception as e:
+        print(f"[Hotel List] 从Price Dashboard加载位置信息失败: {str(e)}")
+        return {}
 
 
 def render_hotel_list(df):
@@ -84,31 +134,49 @@ def render_hotel_list(df):
         st.info(t["empty_tip"])
         return
 
-    # 提取酒店名称 + 国家 + 城市 + 订单数
-    group_cols = [hotel_col]
-    if country_col:
-        group_cols.append(country_col)
-    if city_col:
-        group_cols.append(city_col)
-    
+    # 先按酒店名称统计订单数
     result = (
-        work.groupby(group_cols)
+        work.groupby(hotel_col)
         .size()
         .reset_index(name=t["col_count"])
         .sort_values(by=t["col_count"], ascending=False)
     )
     
-    rename_dict = {hotel_col: t["col_hotel"]}
-    if country_col:
-        rename_dict[country_col] = t["col_country"]
-    if city_col:
-        rename_dict[city_col] = t["col_city"]
-    result = result.rename(columns=rename_dict)
+    result = result.rename(columns={hotel_col: t["col_hotel"]})
     
-    if country_col not in result.columns:
-        result[t["col_country"]] = ""
-    if city_col not in result.columns:
-        result[t["col_city"]] = ""
+    # 从Price Dashboard加载酒店位置信息
+    location_map = _load_hotel_location_from_price()
+    
+    # 根据酒店名称补充国家和城市信息
+    result[t["col_country"]] = result[t["col_hotel"]].apply(
+        lambda x: location_map.get(x, {}).get("国家", "") if x in location_map else ""
+    )
+    result[t["col_city"]] = result[t["col_hotel"]].apply(
+        lambda x: location_map.get(x, {}).get("城市", "") if x in location_map else ""
+    )
+    
+    # 对于没有从Price Dashboard获取到位置信息的酒店，使用主数据中的信息作为备选
+    missing_mask = (result[t["col_country"]] == "") & (result[t["col_city"]] == "")
+    if missing_mask.any() and (country_col or city_col):
+        # 从主数据中获取酒店位置信息作为备选
+        hotel_location_from_main = {}
+        for _, row in work.iterrows():
+            hotel_name = str(row[hotel_col]).strip()
+            if hotel_name and hotel_name not in hotel_location_from_main:
+                hotel_location_from_main[hotel_name] = {
+                    "国家": str(row[country_col]).strip() if country_col and pd.notna(row.get(country_col)) else "",
+                    "城市": str(row[city_col]).strip() if city_col and pd.notna(row.get(city_col)) else ""
+                }
+        
+        # 填充缺失的位置信息
+        for idx in result[missing_mask].index:
+            hotel_name = result.at[idx, t["col_hotel"]]
+            if hotel_name in hotel_location_from_main:
+                loc = hotel_location_from_main[hotel_name]
+                if not result.at[idx, t["col_country"]]:
+                    result.at[idx, t["col_country"]] = loc.get("国家", "")
+                if not result.at[idx, t["col_city"]]:
+                    result.at[idx, t["col_city"]] = loc.get("城市", "")
     
     result = result[[t["col_hotel"], t["col_country"], t["col_city"], t["col_count"]]]
 
