@@ -59,13 +59,13 @@ def render_dashboard(df):
     if status_col is None:
         active_df["状态"] = ""
     else:
-        active_df["状态"] = active_df[status_col].fillna("").astype(str).str.strip()
+        active_df["状态"] = active_df[status_col].apply(lambda x: str(x).strip() if pd.notna(x) else "")
     active_df["标准状态"] = active_df["状态"].apply(get_standard_status)
     
     if "团单号" in active_df.columns:
-        active_df["团单号"] = active_df["团单号"].fillna("").astype(str).str.strip()
+        active_df["团单号"] = active_df["团单号"].apply(lambda x: str(x).strip() if pd.notna(x) else "")
     if "客户名称 Customer Name" in active_df.columns:
-        active_df["客户名称 Customer Name"] = active_df["客户名称 Customer Name"].fillna("").astype(str).str.strip()
+        active_df["客户名称 Customer Name"] = active_df["客户名称 Customer Name"].apply(lambda x: str(x).strip() if pd.notna(x) else "")
     
     active_df["去重键"] = active_df.apply(
         lambda row: row["团单号"] if row.get("团单号", "") else row.get("客户名称 Customer Name", ""),

@@ -62,12 +62,12 @@ def render_hotel_list(df):
         return
 
     work = df.copy()
-    work[hotel_col] = work[hotel_col].fillna("").astype(str).str.strip()
-    work[status_col] = work[status_col].fillna("").astype(str).str.strip()
+    work[hotel_col] = work[hotel_col].apply(lambda x: str(x).strip() if pd.notna(x) else "")
+    work[status_col] = work[status_col].apply(lambda x: str(x).strip() if pd.notna(x) else "")
     if country_col:
-        work[country_col] = work[country_col].fillna("").astype(str).str.strip()
+        work[country_col] = work[country_col].apply(lambda x: str(x).strip() if pd.notna(x) else "")
     if remark_col:
-        work[remark_col] = work[remark_col].fillna("").astype(str).str.strip()
+        work[remark_col] = work[remark_col].apply(lambda x: str(x).strip() if pd.notna(x) else "")
 
     # 筛选：状态为团房成功
     success_key = "group_booking_success"

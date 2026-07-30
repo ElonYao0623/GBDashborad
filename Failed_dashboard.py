@@ -57,11 +57,14 @@ def render_failed_dashboard(df):
     
     # 数据预处理
     if "团单号" in failed_df.columns:
-        failed_df["团单号"] = failed_df["团单号"].fillna("").astype(str).str.strip()
+        failed_df["团单号"] = failed_df["团单号"].apply(lambda x: str(x).strip() if pd.notna(x) else "")
     if "客户名称 Customer Name" in failed_df.columns:
-        failed_df["客户名称 Customer Name"] = failed_df["客户名称 Customer Name"].fillna("").astype(str).str.strip()
+        failed_df["客户名称 Customer Name"] = failed_df["客户名称 Customer Name"].apply(lambda x: str(x).strip() if pd.notna(x) else "")
     
-    failed_df["状态"] = failed_df.get("状态", "").fillna("").astype(str).str.strip()
+    if "状态" in failed_df.columns:
+        failed_df["状态"] = failed_df["状态"].apply(lambda x: str(x).strip() if pd.notna(x) else "")
+    else:
+        failed_df["状态"] = ""
     failed_df["标准状态"] = failed_df["状态"].apply(get_standard_status)
     
     # 筛选团房失败状态

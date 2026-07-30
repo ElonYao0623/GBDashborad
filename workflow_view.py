@@ -83,7 +83,7 @@ def render_workflow_view(df):
     if status_col is None:
         workflow_df["状态"] = ""
     else:
-        workflow_df["状态"] = workflow_df[status_col].fillna("").astype(str).str.strip()
+        workflow_df["状态"] = workflow_df[status_col].apply(lambda x: str(x).strip() if pd.notna(x) else "")
     workflow_df["标准状态"] = workflow_df["状态"].apply(get_standard_status)
     workflow_df["当前流程节点"] = workflow_df["标准状态"]
     # 入住天数计算

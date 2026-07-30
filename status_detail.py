@@ -56,7 +56,7 @@ def render_status_detail(df):
     target_status_raw = st.session_state["jump_status"]
     all_df = df.copy()
 
-    all_df["状态"] = all_df["状态"].fillna("").astype(str).str.strip()
+    all_df["状态"] = all_df["状态"].apply(lambda x: str(x).strip() if pd.notna(x) else "")
     from config import get_standard_status
     all_df["标准状态"] = all_df["状态"].apply(get_standard_status)
     

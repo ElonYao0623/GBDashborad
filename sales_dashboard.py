@@ -50,9 +50,9 @@ def render_sales_dashboard(df):
     sales_df = df.copy()
     
     if "团单号" in sales_df.columns:
-        sales_df["团单号"] = sales_df["团单号"].fillna("").astype(str).str.strip()
+        sales_df["团单号"] = sales_df["团单号"].apply(lambda x: str(x).strip() if pd.notna(x) else "")
     if "客户名称 Customer Name" in sales_df.columns:
-        sales_df["客户名称 Customer Name"] = sales_df["客户名称 Customer Name"].fillna("").astype(str).str.strip()
+        sales_df["客户名称 Customer Name"] = sales_df["客户名称 Customer Name"].apply(lambda x: str(x).strip() if pd.notna(x) else "")
     
     sales_df["去重键"] = sales_df.apply(
         lambda row: row["团单号"] if row.get("团单号", "") else row.get("客户名称 Customer Name", ""),

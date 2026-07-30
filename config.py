@@ -284,15 +284,21 @@ def _fetch_feishu_sheet(config_key, label):
         keep_cols = [i for i in range(len(df.columns)) if i not in duplicate_cols]
         df = df.iloc[:, keep_cols]
 
+    # 关键修复：创建新DataFrame存储处理后的数据，避免类型不匹配问题
+    # 当原DataFrame某列是int64/float64类型时，直接赋值字符串Series会失败
+    new_df = pd.DataFrame()
     for i, col in enumerate(df.columns):
-        df.iloc[:, i] = df.iloc[:, i].apply(lambda x: _parse_feishu_cell(x))
-        # 先填充 NaN 再转换为字符串，避免类型推断问题
-        df.iloc[:, i] = df.iloc[:, i].fillna("").astype(str).str.strip().str.replace(r"[\n\r]", "", regex=True)
+        # 先解析飞书单元格内容
+        processed_col = df.iloc[:, i].apply(lambda x: _parse_feishu_cell(x))
+        # 先fillna("")填充所有NaN值，再astype(str)转换为字符串
+        processed_col = processed_col.fillna("").astype(str).str.strip().str.replace(r"[\n\r]", "", regex=True)
+        # 使用列名赋值到新DataFrame，避免iloc类型检查问题
+        new_df[col] = processed_col
 
-    df = df.replace(["nan", "None", "[]"], "")
+    new_df = new_df.replace(["nan", "None", "[]", "null"], "")
 
-    print(f"[飞书同步] 成功读取 {len(df)} 条数据，列名: {list(df.columns)}")
-    return df
+    print(f"[飞书同步] 成功读取 {len(new_df)} 条数据，列名: {list(new_df.columns)}")
+    return new_df
 
 def _parse_feishu_cell(value):
     if isinstance(value, list):

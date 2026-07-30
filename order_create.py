@@ -72,7 +72,8 @@ def auto_sync_worker():
                     "销售团队 Salesteam": "Salesteam"
                 }
                 sync_df = sync_df.rename(columns=col_mapping)
-                sync_df["团单号"] = sync_df["团单号"].astype(str).str.strip()
+                # 关键修复：使用apply转换，避免int64/float64列赋值字符串失败
+                sync_df["团单号"] = sync_df["团单号"].apply(lambda x: str(x).strip() if pd.notna(x) else "")
 
                 save_data(sync_df)
                 beijing_time = datetime.now(beijing_tz)
@@ -532,11 +533,12 @@ def render_create_order(df):
                 sync_df = sync_df.rename(columns=col_mapping)
                 
                 # 处理团单号列，确保转换为字符串，处理 NaN 值
-                sync_df["团单号"] = sync_df["团单号"].fillna("").astype(str).str.strip()
+                # 关键修复：使用apply转换，避免int64/float64列赋值字符串失败
+                sync_df["团单号"] = sync_df["团单号"].apply(lambda x: str(x).strip() if pd.notna(x) else "")
                 
                 current_df = load_data()
                 if not current_df.empty:
-                    current_df["团单号"] = current_df["团单号"].fillna("").astype(str).str.strip()
+                    current_df["团单号"] = current_df["团单号"].apply(lambda x: str(x).strip() if pd.notna(x) else "")
                     
                     feishu_order_ids = set(sync_df["团单号"].dropna().tolist())
                     current_order_ids = set(current_df["团单号"].dropna().tolist())
