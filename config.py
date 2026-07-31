@@ -167,6 +167,31 @@ def load_data():
     return df[expected_cols]
 
 def save_data(df):
+    # 确保所有预期的列都存在
+    expected_cols = [
+        "团单号", "客户名称 Customer Name", "User ID", "国籍 Nationality",
+        "房间总数 Total Rooms", "状态", "提交时间 Submitted by", "最后更新时间", "国家 Country",
+        "联系方式 Contact Info", "入住日期 Check-in Date", "离店日期 Check-out Date",
+        "房型要求 Room Type", "报价币种 Currency", "预算范围 Budget Range",
+        "房间数 Rooms", "酒店星级 Star Rating", "间夜数 Room Nights",
+        "会议室/交通需求 Meeting Room / Transportation Requirements",
+        "出行目的 Purpose of travel", "特殊需求 Special Requests",
+        "Joy 底价 Joy's Net Rate", "建议卖价 Suggested Selling Price",
+        "额外税费需求 Extra tax if needed", "房间保留时间", "支付方式",
+        "餐食", "取消政策", "未成单原因（一级）", "未成单原因（二级）", "运营备注 Ops Notes", "BD", "Salesteam", "酒店名称 Hotel Name",
+        "销售姓名 Sales Name", "备注",
+        "客户咨询天数", "等待Joy报价天数", "等待运营询价天数", "询价成功天数", "询价失败天数",
+        "等待运营审核天数", "等待客户确认天数", "客户确认成团天数", "客户确认失败天数",
+        "等待酒店锁房天数", "考虑备选酒店天数", "等待客户支付天数", "团房成功天数", "团房失败天数"
+    ]
+    
+    # 添加缺失的列
+    for col in expected_cols:
+        if col not in df.columns:
+            df[col] = ""
+    
+    # 按照预期顺序保存
+    df = df[expected_cols]
     df.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
 
 # ---------------- 飞书API工具（使用电子表格Spreadsheet API） ----------------
