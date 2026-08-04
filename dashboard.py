@@ -22,7 +22,13 @@ PAGE_TEXT = {
         "day_8_15": "8~15天",
         "day_16_30": "16~30天",
         "day_over30": "30天以上",
-        "day_expired": "已过期"
+        "day_expired": "已过期",
+        "date_filter": "日期筛选",
+        "date_from": "开始日期",
+        "date_to": "结束日期",
+        "date_all": "全部数据",
+        "date_submit": "基于提交日期",
+        "date_filtered": "筛选后"
     },
     "en": {
         "page_name": "Dashboard",
@@ -42,7 +48,13 @@ PAGE_TEXT = {
         "day_8_15": "8~15 days",
         "day_16_30": "16~30 days",
         "day_over30": "Over 30 days",
-        "day_expired": "Expired"
+        "day_expired": "Expired",
+        "date_filter": "Date Filter",
+        "date_from": "From",
+        "date_to": "To",
+        "date_all": "All Data",
+        "date_submit": "Based on Submission Date",
+        "date_filtered": "Filtered"
     }
 }
 def render_dashboard(df):
@@ -71,6 +83,58 @@ def render_dashboard(df):
         lambda row: row["团单号"] if row.get("团单号", "") else row.get("客户名称 Customer Name", ""),
         axis=1
     )
+    
+    # 日期筛选器 - 基于提交日期
+    if "提交时间 Submitted by" in active_df.columns:
+        def parse_submit_date(s):
+            try:
+                x = str(s).strip()
+                if not x:
+                    return None
+                if "/" in x:
+                    return datetime.strptime(x, "%Y/%m/%d").date()
+                else:
+                    return datetime.strptime(x, "%Y-%m-%d").date()
+            except:
+                return None
+        
+        active_df["提交日期"] = active_df["提交时间 Submitted by"].apply(parse_submit_date)
+        valid_dates = active_df["提交日期"].dropna()
+        
+        if len(valid_dates) > 0:
+            min_date = valid_dates.min()
+            max_date = valid_dates.max()
+            
+            with st.expander(f"🔍 {t['date_filter']} - {t['date_submit']}", expanded=False):
+                st.markdown(f"<div style='color:#6b7280; font-size:13px; margin-bottom:8px'>{t['date_submit']}</div>", unsafe_allow_html=True)
+                
+                col_from, col_to = st.columns(2)
+                with col_from:
+                    filter_start = st.date_input(
+                        t["date_from"],
+                        value=min_date,
+                        min_value=min_date,
+                        max_value=max_date,
+                        key="dash_date_start"
+                    )
+                with col_to:
+                    filter_end = st.date_input(
+                        t["date_to"],
+                        value=max_date,
+                        min_value=min_date,
+                        max_value=max_date,
+                        key="dash_date_end"
+                    )
+                
+                if st.button(f"🔄 {t['date_all']}", key="dash_reset_date"):
+                    st.session_state.pop("dash_date_start", None)
+                    st.session_state.pop("dash_date_end", None)
+                    st.rerun()
+            
+            if filter_start and filter_end:
+                mask = (active_df["提交日期"] >= filter_start) & (active_df["提交日期"] <= filter_end)
+                active_df = active_df[mask].copy()
+    
     unique_df = active_df[["去重键", "标准状态"]].drop_duplicates()
     total = len(unique_df)
     st.metric(t["total_order"], total)

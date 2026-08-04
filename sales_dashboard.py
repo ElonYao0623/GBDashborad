@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 import numpy as np
+from datetime import datetime, date
 from config import configure_matplotlib_font, get_workflow_step_text, get_standard_status, WORKFLOW_STEPS_ZH
 
 PAGE_TEXT = {
@@ -20,7 +21,12 @@ PAGE_TEXT = {
         "status_pie_title": "订单状态占比",
         "click_tip": "💡 点击销售姓名查看详细状态统计",
         "team_status_title": "团队订单状态占比",
-        "team_btn_tip": "💡 点击团队名称查看订单状态占比"
+        "team_btn_tip": "💡 点击团队名称查看订单状态占比",
+        "date_filter": "日期筛选",
+        "date_from": "开始日期",
+        "date_to": "结束日期",
+        "date_all": "全部数据",
+        "date_submit": "基于提交日期"
     },
     "en": {
         "title": "Sales Team Statistics",
@@ -36,7 +42,12 @@ PAGE_TEXT = {
         "status_pie_title": "Status Ratio",
         "click_tip": "💡 Click on sales name to view detailed status stats",
         "team_status_title": "Team Order Status Ratio",
-        "team_btn_tip": "💡 Click on team name to view order status ratio"
+        "team_btn_tip": "💡 Click on team name to view order status ratio",
+        "date_filter": "Date Filter",
+        "date_from": "From",
+        "date_to": "To",
+        "date_all": "All Data",
+        "date_submit": "Based on Submission Date"
     }
 }
 
@@ -74,6 +85,55 @@ def render_sales_dashboard(df):
     if "销售姓名 Sales Name" not in sales_df.columns:
         sales_df["销售姓名 Sales Name"] = ""
     sales_df["sales_name"] = sales_df["销售姓名 Sales Name"].fillna("未知销售").astype(str).str.strip()
+    
+    # 日期筛选器 - 基于提交日期
+    if "提交时间 Submitted by" in sales_df.columns:
+        def parse_submit_date(s):
+            try:
+                x = str(s).strip()
+                if not x:
+                    return None
+                if "/" in x:
+                    return datetime.strptime(x, "%Y/%m/%d").date()
+                else:
+                    return datetime.strptime(x, "%Y-%m-%d").date()
+            except:
+                return None
+        
+        sales_df["提交日期"] = sales_df["提交时间 Submitted by"].apply(parse_submit_date)
+        valid_dates = sales_df["提交日期"].dropna()
+        
+        if len(valid_dates) > 0:
+            min_date = valid_dates.min()
+            max_date = valid_dates.max()
+            
+            with st.expander(f"🔍 {t['date_filter']} - {t['date_submit']}", expanded=False):
+                col_from, col_to = st.columns(2)
+                with col_from:
+                    filter_start = st.date_input(
+                        t["date_from"],
+                        value=min_date,
+                        min_value=min_date,
+                        max_value=max_date,
+                        key="sales_date_start"
+                    )
+                with col_to:
+                    filter_end = st.date_input(
+                        t["date_to"],
+                        value=max_date,
+                        min_value=min_date,
+                        max_value=max_date,
+                        key="sales_date_end"
+                    )
+                
+                if st.button(f"🔄 {t['date_all']}", key="sales_reset_date"):
+                    st.session_state.pop("sales_date_start", None)
+                    st.session_state.pop("sales_date_end", None)
+                    st.rerun()
+            
+            if filter_start and filter_end:
+                mask = (sales_df["提交日期"] >= filter_start) & (sales_df["提交日期"] <= filter_end)
+                sales_df = sales_df[mask].copy()
     
     unique_df = sales_df[["去重键", "标准状态", "team_temp", "sales_name"]].drop_duplicates()
     
