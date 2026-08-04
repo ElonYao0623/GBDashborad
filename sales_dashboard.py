@@ -11,6 +11,7 @@ PAGE_TEXT = {
         "total_order": "销售订单总数",
         "my_chart_title": "MY团队订单统计",
         "id_chart_title": "ID团队订单统计",
+        "mea_chart_title": "MEA团队订单统计",
         "empty_tip": "暂无数据",
         "percentage": "占比",
         "count": "数量",
@@ -26,6 +27,7 @@ PAGE_TEXT = {
         "total_order": "Total Sales Orders",
         "my_chart_title": "MY Team Order Stats",
         "id_chart_title": "ID Team Order Stats",
+        "mea_chart_title": "MEA Team Order Stats",
         "empty_tip": "No data available",
         "percentage": "Percentage",
         "count": "Count",
@@ -37,6 +39,9 @@ PAGE_TEXT = {
         "team_btn_tip": "💡 Click on team name to view order status ratio"
     }
 }
+
+# 销售团队列表
+TEAMS = ["MY", "ID", "MEA"]
 
 
 def render_sales_dashboard(df):
@@ -131,7 +136,8 @@ def render_sales_dashboard(df):
                 fig.patch.set_facecolor("white")
                 team_colors = {
                     "MY": ["#4f46e5", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899", "#f43f5e", "#f97316", "#eab308", "#22c55e", "#14b8a6", "#06b6d4", "#3b82f6"],
-                    "ID": ["#10b981", "#059669", "#047857", "#065f46", "#0ea5e9", "#0284c7", "#0369a1", "#075985", "#f59e0b", "#d97706", "#b45309", "#92400e"]
+                    "ID": ["#10b981", "#059669", "#047857", "#065f46", "#0ea5e9", "#0284c7", "#0369a1", "#075985", "#f59e0b", "#d97706", "#b45309", "#92400e"],
+                    "MEA": ["#f43f5e", "#e11d48", "#be123c", "#9f1239", "#881337", "#fb7185", "#fda4af", "#fecdd3", "#f0abfc", "#e879f9", "#d946ef", "#c026d3"]
                 }
                 if selected_team in team_colors:
                     colors_list = team_colors[selected_team][:len(labels)]
@@ -269,78 +275,50 @@ def render_sales_dashboard(df):
         # 显示团队视图
         st.markdown(f"<div style='color:#6b7280; font-size:14px; margin-bottom:10px'>{t['team_btn_tip']}</div>", unsafe_allow_html=True)
         
-        col1, col2 = st.columns(2)
+        # 团队颜色配置
+        team_colors_map = {
+            "MY": ["#4f46e5", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899", "#f43f5e", "#f97316", "#eab308", "#22c55e", "#14b8a6", "#06b6d4", "#3b82f6"],
+            "ID": ["#10b981", "#059669", "#047857", "#065f46", "#0ea5e9", "#0284c7", "#0369a1", "#075985", "#f59e0b", "#d97706", "#b45309", "#92400e"],
+            "MEA": ["#f43f5e", "#e11d48", "#be123c", "#9f1239", "#881337", "#fb7185", "#fda4af", "#fecdd3", "#f0abfc", "#e879f9", "#d946ef", "#c026d3"]
+        }
         
-        my_df = unique_df[unique_df["team_temp"] == "MY"]
-        my_total = len(my_df)
-        my_sales_cnt = my_df["sales_name"].value_counts()
+        col1, col2, col3 = st.columns(3)
+        cols = [col1, col2, col3]
         
-        with col1:
-            with st.container(height=420):
-                st.subheader(t["my_chart_title"])
-                st.metric(t["total_order"], my_total)
-                if my_total > 0:
-                    fig_my, ax_my = plt.subplots(figsize=(3, 3))
-                    my_colors = [
-                        "#4f46e5", "#8b5cf6", "#a855f7", "#d946ef", 
-                        "#ec4899", "#f43f5e", "#f97316", "#eab308",
-                        "#22c55e", "#14b8a6", "#06b6d4", "#3b82f6"
-                    ]
-                    ax_my.pie(
-                        my_sales_cnt.values,
-                        labels=my_sales_cnt.index,
-                        autopct=lambda p: f"{p:.0f}%",
-                        startangle=90,
-                        colors=my_colors[:len(my_sales_cnt)],
-                        textprops={"fontproperties": font_prop, "fontsize": 6},
-                        wedgeprops={"edgecolor": "#ffffff", "linewidth": 2}
-                    )
-                    ax_my.axis("equal")
-                    st.pyplot(fig_my)
-                    plt.close(fig_my)
-                else:
-                    st.info(t["empty_tip"])
-                
-                # 添加团队按钮
-                if st.button(f"📊 {t['team_status_title']}: MY", key="team_my_btn", use_container_width=True, disabled=my_total == 0):
-                    st.session_state["selected_team"] = "MY"
-                    st.rerun()
-        
-        id_df = unique_df[unique_df["team_temp"] == "ID"]
-        id_total = len(id_df)
-        id_sales_cnt = id_df["sales_name"].value_counts()
-        
-        with col2:
-            with st.container(height=420):
-                st.subheader(t["id_chart_title"])
-                st.metric(t["total_order"], id_total)
-                if id_total > 0:
-                    fig_id, ax_id = plt.subplots(figsize=(3, 3))
-                    id_colors = [
-                        "#10b981", "#059669", "#047857", "#065f46",
-                        "#0ea5e9", "#0284c7", "#0369a1", "#075985",
-                        "#f59e0b", "#d97706", "#b45309", "#92400e",
-                        "#8b5cf6", "#7c3aed", "#6d28d9", "#5b21b6"
-                    ]
-                    ax_id.pie(
-                        id_sales_cnt.values,
-                        labels=id_sales_cnt.index,
-                        autopct=lambda p: f"{p:.0f}%",
-                        startangle=90,
-                        colors=id_colors[:len(id_sales_cnt)],
-                        textprops={"fontproperties": font_prop, "fontsize": 6},
-                        wedgeprops={"edgecolor": "#ffffff", "linewidth": 2}
-                    )
-                    ax_id.axis("equal")
-                    st.pyplot(fig_id)
-                    plt.close(fig_id)
-                else:
-                    st.info(t["empty_tip"])
-                
-                # 添加团队按钮
-                if st.button(f"📊 {t['team_status_title']}: ID", key="team_id_btn", use_container_width=True, disabled=id_total == 0):
-                    st.session_state["selected_team"] = "ID"
-                    st.rerun()
+        for idx, team in enumerate(TEAMS):
+            team_df = unique_df[unique_df["team_temp"] == team]
+            team_total = len(team_df)
+            team_sales_cnt = team_df["sales_name"].value_counts()
+            
+            with cols[idx]:
+                with st.container(height=420):
+                    chart_title_key = f"{team.lower()}_chart_title"
+                    chart_title = t.get(chart_title_key, f"{team}团队订单统计" if lang == "zh" else f"{team} Team Order Stats")
+                    st.subheader(chart_title)
+                    st.metric(t["total_order"], team_total)
+                    if team_total > 0:
+                        fig, ax = plt.subplots(figsize=(3, 3))
+                        colors = team_colors_map.get(team, team_colors_map["MY"])
+                        ax.pie(
+                            team_sales_cnt.values,
+                            labels=team_sales_cnt.index,
+                            autopct=lambda p: f"{p:.0f}%",
+                            startangle=90,
+                            colors=colors[:len(team_sales_cnt)],
+                            textprops={"fontproperties": font_prop, "fontsize": 6},
+                            wedgeprops={"edgecolor": "#ffffff", "linewidth": 2}
+                        )
+                        ax.axis("equal")
+                        st.pyplot(fig)
+                        plt.close(fig)
+                    else:
+                        st.info(t["empty_tip"])
+                    
+                    # 添加团队按钮
+                    btn_key = f"team_{team.lower()}_btn"
+                    if st.button(f"📊 {t['team_status_title']}: {team}", key=btn_key, use_container_width=True, disabled=team_total == 0):
+                        st.session_state["selected_team"] = team
+                        st.rerun()
         
         st.divider()
         
@@ -348,7 +326,7 @@ def render_sales_dashboard(df):
         st.subheader(t["title"])
         
         all_data = []
-        for team in ["MY", "ID"]:
+        for team in TEAMS:
             team_df = unique_df[unique_df["team_temp"] == team]
             team_total = len(team_df)
             sales_cnt = team_df["sales_name"].value_counts()
@@ -366,7 +344,7 @@ def render_sales_dashboard(df):
             result_df = pd.DataFrame(all_data)
             
             # 按团队分组展示
-            for team in ["MY", "ID"]:
+            for team in TEAMS:
                 team_data = result_df[result_df["团队"] == team]
                 if len(team_data) > 0:
                     st.markdown(f"**{team}**")
@@ -377,14 +355,14 @@ def render_sales_dashboard(df):
                     team_pcts = team_data[t["percentage"]].tolist()
                     
                     for i in range(0, len(team_sales), cols_per_row):
-                        cols = st.columns(cols_per_row)
+                        cols_row = st.columns(cols_per_row)
                         for j in range(cols_per_row):
-                            idx = i + j
-                            if idx < len(team_sales):
-                                with cols[j]:
-                                    sales_name = team_sales[idx]
-                                    cnt = team_counts[idx]
-                                    pct = team_pcts[idx]
+                            idx_sales = i + j
+                            if idx_sales < len(team_sales):
+                                with cols_row[j]:
+                                    sales_name = team_sales[idx_sales]
+                                    cnt = team_counts[idx_sales]
+                                    pct = team_pcts[idx_sales]
                                     if st.button(f"👤 {sales_name}\n{cnt}单 ({pct})", key=f"sales_{team}_{sales_name}", use_container_width=True):
                                         st.session_state["selected_sales"] = sales_name
                                         st.rerun()
