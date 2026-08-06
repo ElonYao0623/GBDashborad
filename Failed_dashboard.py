@@ -3,7 +3,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 import numpy as np
-from config import configure_matplotlib_font, get_standard_status, STATUS_WORKFLOW_MAP
+from datetime import datetime, date
+from config import configure_matplotlib_font, get_standard_status, STATUS_WORKFLOW_MAP, get_workflow_step_text
 
 PAGE_TEXT = {
     "zh": {
@@ -21,7 +22,14 @@ PAGE_TEXT = {
         "customer_name": "客户名称",
         "hotel_name": "酒店名称",
         "sales_name": "销售姓名",
-        "status": "状态"
+        "status": "状态",
+        "failure_type": "失败类型",
+        "failure_breakdown": "失败类型分布",
+        "date_filter": "日期筛选",
+        "date_from": "开始日期",
+        "date_to": "结束日期",
+        "date_all": "全部数据",
+        "date_submit": "基于提交日期"
     },
     "en": {
         "title": "Failed Booking Analysis",
@@ -38,11 +46,24 @@ PAGE_TEXT = {
         "customer_name": "Customer Name",
         "hotel_name": "Hotel Name",
         "sales_name": "Sales Name",
-        "status": "Status"
+        "status": "Status",
+        "failure_type": "Failure Type",
+        "failure_breakdown": "Failure Type Breakdown",
+        "date_filter": "Date Filter",
+        "date_from": "From",
+        "date_to": "To",
+        "date_all": "All Data",
+        "date_submit": "Based on Submission Date"
     }
 }
 
-STATUS_FAILED_KEY = "group_booking_failed"
+# 所有失败状态
+FAILED_STATUS_KEYS = [
+    "inquiry_failed",        # 询价失败
+    "customer_confirm_failed",  # 客户确认失败
+    "group_booking_failed",  # 团房失败
+    "considering_alternative"  # 考虑备选酒店（锁房失败）
+]
 
 
 def render_failed_dashboard(df):
@@ -67,8 +88,57 @@ def render_failed_dashboard(df):
         failed_df["状态"] = ""
     failed_df["标准状态"] = failed_df["状态"].apply(get_standard_status)
     
-    # 筛选团房失败状态
-    failed_mask = failed_df["标准状态"] == STATUS_FAILED_KEY
+    # 日期筛选器 - 基于提交日期
+    if "提交时间 Submitted by" in failed_df.columns:
+        def parse_submit_date(s):
+            try:
+                x = str(s).strip()
+                if not x:
+                    return None
+                if "/" in x:
+                    return datetime.strptime(x, "%Y/%m/%d").date()
+                else:
+                    return datetime.strptime(x, "%Y-%m-%d").date()
+            except:
+                return None
+        
+        failed_df["提交日期"] = failed_df["提交时间 Submitted by"].apply(parse_submit_date)
+        valid_dates = failed_df["提交日期"].dropna()
+        
+        if len(valid_dates) > 0:
+            min_date = valid_dates.min()
+            max_date = valid_dates.max()
+            
+            with st.expander(f"🔍 {t['date_filter']} - {t['date_submit']}", expanded=False):
+                col_from, col_to = st.columns(2)
+                with col_from:
+                    filter_start = st.date_input(
+                        t["date_from"],
+                        value=min_date,
+                        min_value=min_date,
+                        max_value=max_date,
+                        key="failed_date_start"
+                    )
+                with col_to:
+                    filter_end = st.date_input(
+                        t["date_to"],
+                        value=max_date,
+                        min_value=min_date,
+                        max_value=max_date,
+                        key="failed_date_end"
+                    )
+                
+                if st.button(f"🔄 {t['date_all']}", key="failed_reset_date"):
+                    st.session_state.pop("failed_date_start", None)
+                    st.session_state.pop("failed_date_end", None)
+                    st.rerun()
+            
+            if filter_start and filter_end:
+                mask = (failed_df["提交日期"] >= filter_start) & (failed_df["提交日期"] <= filter_end)
+                failed_df = failed_df[mask].copy()
+    
+    # 筛选所有失败状态
+    failed_mask = failed_df["标准状态"].isin(FAILED_STATUS_KEYS)
     failed_orders = failed_df[failed_mask].copy()
     
     if failed_orders.empty:
@@ -85,6 +155,50 @@ def render_failed_dashboard(df):
     total_failed = len(unique_failed)
     
     st.metric(t["total_failed"], total_failed)
+    st.divider()
+    
+    # 失败类型分布
+    st.subheader(t["failure_breakdown"])
+    
+    failure_type_counts = unique_failed["标准状态"].value_counts()
+    failure_labels = []
+    failure_values = []
+    for key in FAILED_STATUS_KEYS:
+        count = failure_type_counts.get(key, 0)
+        if count > 0:
+            label = get_workflow_step_text(lang, key)
+            failure_labels.append(label)
+            failure_values.append(int(count))
+    
+    if failure_values:
+        col_breakdown_pie, col_breakdown_info = st.columns([3, 1])
+        with col_breakdown_pie:
+            fig_breakdown, ax_breakdown = plt.subplots(figsize=(4, 4))
+            fig_breakdown.patch.set_facecolor("white")
+            breakdown_colors = ["#ef4444", "#f97316", "#dc2626", "#ea580c"]
+            total_breakdown = sum(failure_values)
+            breakdown_pct = [f"{v/total_breakdown*100:.1f}%" for v in failure_values]
+            wedges_bd, texts_bd = ax_breakdown.pie(
+                failure_values,
+                labels=breakdown_pct,
+                labeldistance=1.15,
+                colors=breakdown_colors[:len(failure_labels)],
+                startangle=90,
+                wedgeprops=dict(width=0.65, edgecolor="white", linewidth=2),
+                textprops=dict(fontproperties=font_prop, fontsize=9, fontweight="bold", color="black")
+            )
+            ax_breakdown.set_title(t["failure_breakdown"], fontproperties=font_prop, fontsize=11, fontweight="bold", pad=15)
+            ax_breakdown.axis("equal")
+            ax_breakdown.set_position([0.15, 0.1, 0.7, 0.7])
+            st.pyplot(fig_breakdown, use_container_width=True)
+            plt.close(fig_breakdown)
+        
+        with col_breakdown_info:
+            for label, value in zip(failure_labels, failure_values):
+                pct = (value / total_breakdown) * 100
+                st.markdown(f"**{label}**")
+                st.caption(f"{value}单 ({pct:.1f}%)")
+    
     st.divider()
     
     # 添加未成单原因列
@@ -184,9 +298,17 @@ def render_failed_dashboard(df):
             "客户名称 Customer Name": t["customer_name"],
             "酒店名称 Hotel Name": t["hotel_name"],
             "销售姓名 Sales Name": t["sales_name"],
+            "标准状态": t["failure_type"],
             reason_col_1: reason_col_1,
             reason_col_2: reason_col_2
         }
+        
+        # 添加失败类型列（转换为可读文本）
+        if "标准状态" in detail_df.columns:
+            detail_df = detail_df.copy()
+            detail_df[t["failure_type"]] = detail_df["标准状态"].apply(
+                lambda x: get_workflow_step_text(lang, x) if x in FAILED_STATUS_KEYS else str(x)
+            )
         
         for col, display_name in col_map.items():
             if col in detail_df.columns:

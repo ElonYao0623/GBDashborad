@@ -43,7 +43,9 @@ def render_order_manage(df, user_team=None):
         "Salesteam",
         "酒店名称 Hotel Name",
         "销售姓名 Sales Name",
+        "Channel OP",
         "备注",
+        "上次状态变更时间",
         "客户咨询天数", "等待Joy报价天数", "等待运营询价天数", "询价成功天数", "询价失败天数",
         "等待运营审核天数", "等待客户确认天数", "客户确认成团天数", "客户确认失败天数",
         "等待酒店锁房天数", "考虑备选酒店天数", "等待客户支付天数", "团房成功天数", "团房失败天数"
@@ -192,6 +194,7 @@ def render_order_manage(df, user_team=None):
                         sales_team_input = st.text_input("销售团队 Salesteam", value=get_val("Salesteam"))
                     with c3:
                         sales_name_input = st.text_input("销售姓名 Sales Name", value=get_val("销售姓名 Sales Name"))
+                        channel_op_input = st.text_input("Channel OP", value=get_val("Channel OP"))
                         submitted_by_input = st.text_input("提交时间 Submitted by", value=get_val("提交时间 Submitted by"))
                         last_update_input = st.text_input("最后更新时间", value=get_val("最后更新时间"))
                         status_input_display = st.selectbox("状态", display_status_list, index=status_index)
@@ -245,25 +248,29 @@ def render_order_manage(df, user_team=None):
                         row = full_df.loc[origin_index].copy()
                         old_status = safe_str(row.get("状态", ""))
                         old_std_status = get_standard_status(old_status)
-                        old_last_update = safe_str(row.get("最后更新时间", ""))
+                        # 使用"上次状态变更时间"来计算持续天数
+                        old_status_change_time = safe_str(row.get("上次状态变更时间", ""))
+                        # 如果"上次状态变更时间"为空，回退到"最后更新时间"
+                        if not old_status_change_time:
+                            old_status_change_time = safe_str(row.get("最后更新时间", ""))
                         current_time = datetime.now().strftime("%Y-%m-%d")
                         
                         # 调试日志
                         print(f"[状态持续天数调试] 团单号:{order_no}")
                         print(f"[状态持续天数调试] 旧状态:{old_status} -> 标准:{old_std_status}")
                         print(f"[状态持续天数调试] 新状态:{status_input}")
-                        print(f"[状态持续天数调试] 最后更新时间:{old_last_update}")
-                        print(f"[状态持续天数调试] 条件检查: status_input != old_std_status = {status_input != old_std_status}, old_std_status = {bool(old_std_status)}, old_last_update = {bool(old_last_update)}")
+                        print(f"[状态持续天数调试] 上次状态变更时间:{old_status_change_time}")
+                        print(f"[状态持续天数调试] 条件检查: status_input != old_std_status = {status_input != old_std_status}, old_std_status = {bool(old_std_status)}, old_status_change_time = {bool(old_status_change_time)}")
                         
                         # 使用标准状态进行比较
-                        if status_input != old_std_status and old_std_status and old_last_update:
+                        if status_input != old_std_status and old_std_status and old_status_change_time:
                             print(f"[状态持续天数调试] 状态变更检测到，开始计算持续天数")
                             try:
                                 duration_days = 0
                                 parsed = False
                                 for fmt in ["%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d"]:
                                     try:
-                                        old_date = datetime.strptime(old_last_update, fmt).date()
+                                        old_date = datetime.strptime(old_status_change_time, fmt).date()
                                         new_date = datetime.strptime(current_time, "%Y-%m-%d").date()
                                         duration_days = (new_date - old_date).days
                                         parsed = True
@@ -288,11 +295,13 @@ def render_order_manage(df, user_team=None):
                                             except ValueError:
                                                 pass
                                         row[duration_col] = str(duration_days)
-                                        print(f"[状态持续天数调试] 写入值:{duration_days}天 -> {duration_col}")
+                                        # 更新"上次状态变更时间"为当前时间
+                                        row["上次状态变更时间"] = current_time
+                                        print(f"[状态持续天数调试] 写入值:{duration_days}天 -> {duration_col}, 变更时间更新为:{current_time}")
                                     else:
                                         print(f"[状态持续天数调试] 未找到状态列映射: {old_std_status}")
                                 else:
-                                    print(f"[状态持续天数调试] 日期解析失败: {old_last_update}")
+                                    print(f"[状态持续天数调试] 日期解析失败: {old_status_change_time}")
                             except Exception as e:
                                 print(f"[状态持续天数记录错误] {e}")
                         else:
@@ -306,6 +315,7 @@ def render_order_manage(df, user_team=None):
                         row["联系方式 Contact Info"] = contact
                         row["Salesteam"] = sales_team_input
                         row["销售姓名 Sales Name"] = sales_name_input
+                        row["Channel OP"] = channel_op_input
                         row["提交时间 Submitted by"] = submitted_by_input
                         row["最后更新时间"] = current_time
                         row["状态"] = status_input

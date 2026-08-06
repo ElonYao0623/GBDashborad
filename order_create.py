@@ -120,7 +120,7 @@ PAGE_TEXT = {
     "zh": {
         "page_title": "➕ 新增团单信息",
         "tab_manual": "手动新建团单",
-        "tab_import": "Excel批量导入",
+        "tab_import": "飞书多维表格导入",
         "tab_feishu": "飞书同步",
         "form_order_id": "团单号（必填）",
         "form_customer": "客户名称 Customer Name",
@@ -154,6 +154,7 @@ PAGE_TEXT = {
         "form_sale_team": "销售团队 Salesteam",
         "form_hotel_name": "酒店名称 Hotel Name",
         "form_sale_name": "销售姓名 Sales Name",
+        "form_channel_op": "Channel OP",
         "form_status": "初始订单状态",
         "btn_save": "保存新建团单",
         "success_save": "团单【{}】创建完成！",
@@ -209,6 +210,7 @@ PAGE_TEXT = {
         "form_sale_team": "Sales Team",
         "form_hotel_name": "Hotel Name",
         "form_sale_name": "Sales Name",
+        "form_channel_op": "Channel OP",
         "form_status": "Initial Status",
         "btn_save": "Save Booking",
         "success_save": "Booking {} created!",
@@ -284,6 +286,7 @@ def render_create_order(df):
                 sale_team = st.text_input(t["form_sale_team"])
             with c8:
                 sale_name = st.text_input(t["form_sale_name"])
+                channel_op = st.text_input(t["form_channel_op"])
                 init_status = st.selectbox(t["form_status"], all_status, format_func=lambda s:get_workflow_step_text(lang,s))
             submit = st.form_submit_button(t["btn_save"])
             if submit:
@@ -331,6 +334,7 @@ def render_create_order(df):
                     "Salesteam": sale_team.strip(),
                     "酒店名称 Hotel Name": hotel_name.strip(),
                     "销售姓名 Sales Name": sale_name.strip(),
+                    "Channel OP": channel_op.strip(),
                     "备注": ""
                 }
                 new_df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
@@ -384,6 +388,7 @@ def render_create_order(df):
                     "运营备注 Ops Notes.1": "运营备注 Ops Notes",
                     "状态 Status": "状态",
                     "销售姓名 Sales Name": "销售姓名 Sales Name",
+                    "Channel OP": "Channel OP",
                     "酒店名称 Hotel Name": "酒店名称 Hotel Name",
                     "房间数 Rooms": "房间数 Rooms",
                     "酒店星级 Star Rating": "酒店星级 Star Rating",
@@ -401,7 +406,7 @@ def render_create_order(df):
                     "Joy 底价 Joy's Net Rate", "建议卖价 Suggested Selling Price",
                     "额外税费需求 Extra tax if needed", "房间保留时间", "支付方式",
                     "餐食", "取消政策", "未成单原因（一级）", "未成单原因（二级）", "运营备注 Ops Notes", "BD", "Salesteam", "酒店名称 Hotel Name",
-                    "销售姓名 Sales Name", "备注",
+                    "销售姓名 Sales Name", "Channel OP", "备注",
                     "客户咨询天数", "等待Joy报价天数", "等待运营询价天数", "询价成功天数", "询价失败天数",
                     "等待运营审核天数", "等待客户确认天数", "客户确认成团天数", "客户确认失败天数",
                     "等待酒店锁房天数", "考虑备选酒店天数", "等待客户支付天数", "团房成功天数", "团房失败天数"
@@ -415,14 +420,14 @@ def render_create_order(df):
                             else:
                                 mapped_df[target_col] = mapped_df[target_col] + " " + import_df[src_col]
                 if "团单号" in mapped_df.columns:
-                    mapped_df["团单号"] = mapped_df["团单号"].astype(str).str.strip()
+                    mapped_df["团单号"] = mapped_df["团单号"].apply(lambda x: str(x).strip() if pd.notna(x) else "")
                     mapped_df = mapped_df[mapped_df["团单号"] != ""]
                     mapped_df = mapped_df.drop_duplicates(subset=["团单号"], keep="last")
                 if mapped_df.empty:
                     st.warning(t["import_empty"])
                     return
                 local_df = load_data()
-                local_df["团单号"] = local_df["团单号"].astype(str).str.strip()
+                local_df["团单号"] = local_df["团单号"].apply(lambda x: str(x).strip() if pd.notna(x) else "")
                 cover_ids = mapped_df["团单号"].unique()
                 local_keep = local_df[~local_df["团单号"].isin(cover_ids)].copy()
                 full_df = pd.concat([local_keep, mapped_df], ignore_index=True)
@@ -566,7 +571,11 @@ def render_create_order(df):
                             current_row = current_order_map[order_no]
                             old_status = str(current_row.get("状态", "")).strip()
                             old_std_status = get_standard_status(old_status)
-                            old_last_update = str(current_row.get("最后更新时间", "")).strip()
+                            # 使用"上次状态变更时间"来计算持续天数，而不是"最后更新时间"
+                            old_status_change_time = str(current_row.get("上次状态变更时间", "")).strip()
+                            # 如果"上次状态变更时间"为空，回退到"最后更新时间"
+                            if not old_status_change_time:
+                                old_status_change_time = str(current_row.get("最后更新时间", "")).strip()
                             
                             # 先复制所有已有的状态持续时间数据
                             for dc in duration_cols:
@@ -576,12 +585,18 @@ def render_create_order(df):
                                         sync_df[dc] = ""
                                     sync_df.at[idx, dc] = existing_val
                             
+                            # 复制"上次状态变更时间"到sync_df（避免被飞书数据覆盖）
+                            if old_status_change_time:
+                                if "上次状态变更时间" not in sync_df.columns:
+                                    sync_df["上次状态变更时间"] = ""
+                                sync_df.at[idx, "上次状态变更时间"] = old_status_change_time
+                            
                             # 如果状态变更，记录上一状态持续天数（使用标准状态比较）
-                            if new_std_status != old_std_status and old_std_status and old_last_update:
+                            if new_std_status != old_std_status and old_std_status and old_status_change_time:
                                 try:
                                     for fmt in ["%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d"]:
                                         try:
-                                            old_date = datetime.strptime(old_last_update, fmt).date()
+                                            old_date = datetime.strptime(old_status_change_time, fmt).date()
                                             new_date = datetime.strptime(current_time, "%Y-%m-%d").date()
                                             duration_days = (new_date - old_date).days
                                             duration_col = STATUS_DURATION_COL_MAP.get(old_std_status, "")
@@ -596,7 +611,9 @@ def render_create_order(df):
                                                 if duration_col not in sync_df.columns:
                                                     sync_df[duration_col] = ""
                                                 sync_df.at[idx, duration_col] = str(duration_days)
-                                                print(f"[状态持续天数记录] 团单号:{order_no}, 旧状态:{old_status}({old_std_status}), 持续{duration_days}天 -> {duration_col}")
+                                                # 更新"上次状态变更时间"为当前时间
+                                                sync_df.at[idx, "上次状态变更时间"] = current_time
+                                                print(f"[状态持续天数记录] 团单号:{order_no}, 旧状态:{old_status}({old_std_status}), 持续{duration_days}天 -> {duration_col}, 变更时间更新为:{current_time}")
                                             break
                                         except ValueError:
                                             continue
@@ -607,11 +624,17 @@ def render_create_order(df):
                             for dc in duration_cols:
                                 if dc not in sync_df.columns:
                                     sync_df[dc] = ""
+                            # 新订单设置"上次状态变更时间"为当前时间
+                            if "上次状态变更时间" not in sync_df.columns:
+                                sync_df["上次状态变更时间"] = ""
+                            sync_df.at[idx, "上次状态变更时间"] = current_time
                     
                     # 确保所有状态持续时间列都存在
                     for dc in duration_cols:
                         if dc not in sync_df.columns:
                             sync_df[dc] = ""
+                    if "上次状态变更时间" not in sync_df.columns:
+                        sync_df["上次状态变更时间"] = ""
                 
                 save_data(sync_df)
                 import pytz

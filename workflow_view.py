@@ -32,7 +32,10 @@ PAGE_TEXT = {
         "fail_reason_1": "未成单原因（一级）",
         "fail_reason_2": "未成单原因（二级）",
         "Unknown": "Unknown",
-        "ops_remark": "运营备注"
+        "ops_remark": "运营备注",
+        "channel_op": "Channel OP",
+        "search_channel_op": "搜索Channel OP",
+        "filter_channel_op": "Channel OP筛选"
     },
     "en": {
         "page_header": "Group Booking Full Process Tracking Board",
@@ -63,7 +66,10 @@ PAGE_TEXT = {
         "fail_reason_1": "Uncompleted Reason (Level 1)",
         "fail_reason_2": "Uncompleted Reason (Level 2)",
         "Unknown": "Unknown",
-        "ops_remark": "Operations Remark"
+        "ops_remark": "Operations Remark",
+        "channel_op": "Channel OP",
+        "search_channel_op": "Search Channel OP",
+        "filter_channel_op": "Channel OP Filter"
     }
 }
 def safe_val(val):
@@ -123,7 +129,7 @@ def render_workflow_view(df):
     workflow_df["状态持续天数"] = workflow_df["最后更新时间"].apply(calc_status_days)
     
     # 确保搜索所需的列存在
-    for col in ["团单号", "客户名称 Customer Name", "销售姓名 Sales Name", "Salesteam"]:
+    for col in ["团单号", "客户名称 Customer Name", "销售姓名 Sales Name", "Salesteam", "Channel OP"]:
         if col not in workflow_df.columns:
             workflow_df[col] = ""
     
@@ -144,7 +150,7 @@ def render_workflow_view(df):
     # 筛选UI
     st.subheader("🔍 筛选条件")
     r1c1, r1c2, r1c3 = st.columns([2,2,2])
-    r2c1, r2c2 = st.columns([2,2])
+    r2c1, r2c2, r2c3 = st.columns([2,2,2])
     with r1c1:
         filter_status_display = st.selectbox(t["filter_step"], status_options)
     with r1c2:
@@ -167,6 +173,8 @@ def render_workflow_view(df):
         search_key = st.text_input(t["search_order_cust"])
     with r2c2:
         search_bd = st.text_input(t["search_bd_team"])
+    with r2c3:
+        search_channel_op = st.text_input(t["search_channel_op"])
     st.divider()
     # 日期解析（统一返回date对象）
     parse_flag = False
@@ -197,6 +205,10 @@ def render_workflow_view(df):
     if search_bd.strip():
         kw = search_bd.lower()
         workflow_df = workflow_df[workflow_df["销售姓名 Sales Name"].str.lower().str.contains(kw, na=False) | workflow_df["Salesteam"].str.lower().str.contains(kw, na=False)]
+    if search_channel_op.strip():
+        kw = search_channel_op.lower()
+        if "Channel OP" in workflow_df.columns:
+            workflow_df = workflow_df[workflow_df["Channel OP"].str.lower().str.contains(kw, na=False)]
     # 天数筛选全部补齐赋值
     if day_range != "全部":
         if day_range == "0天内(今日)":
@@ -251,6 +263,7 @@ def render_workflow_view(df):
                 st.write(f"**{t['hotel_name']}**: {safe_val(hotel)}")
             with col2:
                 st.write(f"**{t['sales_name']}**: {safe_val(row.get('销售姓名 Sales Name', ''))}")
+                st.write(f"**{t['channel_op']}**: {safe_val(row.get('Channel OP', ''))}")
                 st.write(f"**{t['currency']}**: {safe_val(row.get('报价币种 Currency', ''))}")
                 joy_price_col = "Joy 底价 Joy's Net Rate"
                 st.write(f"**{t['joy_price']}**: {safe_val(row.get(joy_price_col, ''))}")
