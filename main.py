@@ -416,7 +416,7 @@ with st.sidebar:
     elif user_role == "OP":
         show_pages = ["dashboard", "sales_dashboard", "success_dashboard", "failed_dashboard", "flow", "hotel_list", "price_dashboard"]
     elif user_role == "sales":
-        show_pages = ["dashboard", "flow", "hotel_list", "price_dashboard"]
+        show_pages = ["dashboard", "flow", "hotel_list", "price_dashboard", "sales_dashoboard"]
     else:
         show_pages = ["dashboard", "flow", "hotel_list", "price_dashboard"]
 
