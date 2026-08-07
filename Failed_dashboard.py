@@ -157,50 +157,6 @@ def render_failed_dashboard(df):
     st.metric(t["total_failed"], total_failed)
     st.divider()
     
-    # 失败类型分布
-    st.subheader(t["failure_breakdown"])
-    
-    failure_type_counts = unique_failed["标准状态"].value_counts()
-    failure_labels = []
-    failure_values = []
-    for key in FAILED_STATUS_KEYS:
-        count = failure_type_counts.get(key, 0)
-        if count > 0:
-            label = get_workflow_step_text(lang, key)
-            failure_labels.append(label)
-            failure_values.append(int(count))
-    
-    if failure_values:
-        col_breakdown_pie, col_breakdown_info = st.columns([3, 1])
-        with col_breakdown_pie:
-            fig_breakdown, ax_breakdown = plt.subplots(figsize=(4, 4))
-            fig_breakdown.patch.set_facecolor("white")
-            breakdown_colors = ["#ef4444", "#f97316", "#dc2626", "#ea580c"]
-            total_breakdown = sum(failure_values)
-            breakdown_pct = [f"{v/total_breakdown*100:.1f}%" for v in failure_values]
-            wedges_bd, texts_bd = ax_breakdown.pie(
-                failure_values,
-                labels=breakdown_pct,
-                labeldistance=1.15,
-                colors=breakdown_colors[:len(failure_labels)],
-                startangle=90,
-                wedgeprops=dict(width=0.65, edgecolor="white", linewidth=2),
-                textprops=dict(fontproperties=font_prop, fontsize=9, fontweight="bold", color="black")
-            )
-            ax_breakdown.set_title(t["failure_breakdown"], fontproperties=font_prop, fontsize=11, fontweight="bold", pad=15)
-            ax_breakdown.axis("equal")
-            ax_breakdown.set_position([0.15, 0.1, 0.7, 0.7])
-            st.pyplot(fig_breakdown, use_container_width=True)
-            plt.close(fig_breakdown)
-        
-        with col_breakdown_info:
-            for label, value in zip(failure_labels, failure_values):
-                pct = (value / total_breakdown) * 100
-                st.markdown(f"**{label}**")
-                st.caption(f"{value}单 ({pct:.1f}%)")
-    
-    st.divider()
-    
     # 添加未成单原因列
     reason_col_1 = "未成单原因（一级）"
     reason_col_2 = "未成单原因（二级）"
