@@ -400,30 +400,33 @@ with st.sidebar:
     st.markdown(f"### 📂 {t['nav_header']}")
 
     all_pages = {
-        "dashboard": t["dash"],
-        "sales_dashboard": t["sales_dashboard"],
-        "success_dashboard": t["success_dashboard"],
-        "failed_dashboard": t["failed_dashboard"],
-        "flow": t["flow"],
-        "hotel_list": t["hotel_list"],
-        "price_dashboard": t["price_dashboard"],
-        "price_compare": t["price_compare"],
-        "new_order": t["new_order"],
-        "list_manage": t["list_manage"]
+        "dashboard": t.get("dash", "Dashboard"),
+        "sales_dashboard": t.get("sales_dashboard", "Sales Dashboard"),
+        "success_dashboard": t.get("success_dashboard", "Success Dashboard"),
+        "failed_dashboard": t.get("failed_dashboard", "Failed Dashboard"),
+        "flow": t.get("flow", "Workflow"),
+        "hotel_list": t.get("hotel_list", "Hotel List"),
+        "price_dashboard": t.get("price_dashboard", "Price Dashboard"),
+        "price_compare": t.get("price_compare", "Price Compare"),
+        "new_order": t.get("new_order", "New Order"),
+        "list_manage": t.get("list_manage", "Order Manage")
     }
     if user_role == "admin":
         show_pages = list(all_pages.keys())
     elif user_role == "OP":
         show_pages = ["dashboard", "sales_dashboard", "success_dashboard", "failed_dashboard", "flow", "hotel_list", "price_dashboard"]
     elif user_role == "sales":
-        show_pages = ["dashboard", "flow", "hotel_list", "price_dashboard", "sales_dashoboard"]
+        show_pages = ["dashboard", "flow", "hotel_list", "price_dashboard", "sales_dashboard"]
     else:
         show_pages = ["dashboard", "flow", "hotel_list", "price_dashboard"]
+
+    # 过滤掉 all_pages 中不存在的页面，避免 KeyError
+    show_pages = [p for p in show_pages if p in all_pages]
 
     selected_page = st.radio(
         label="页面选择",
         options=show_pages,
-        format_func=lambda k: all_pages[k],
+        format_func=lambda k: all_pages.get(k, k),
         label_visibility="collapsed"
     )
     if selected_page != st.session_state["current_page"]:
