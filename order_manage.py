@@ -318,7 +318,12 @@ def render_order_manage(df, user_team=None):
                         row["Channel OP"] = channel_op_input
                         row["提交时间 Submitted by"] = submitted_by_input
                         row["最后更新时间"] = current_time
-                        row["状态"] = status_input
+                        # 保存双语状态文本（与飞书数据格式一致），而非标准key
+                        from config import STATUS_WORKFLOW_MAP
+                        if status_input in STATUS_WORKFLOW_MAP:
+                            row["状态"] = f"{STATUS_WORKFLOW_MAP[status_input]['zh']} - {STATUS_WORKFLOW_MAP[status_input]['en']}"
+                        else:
+                            row["状态"] = status_input
                         row["酒店名称 Hotel Name"] = hotel_name
                         row["酒店星级 Star Rating"] = star_rating
                         row["入住日期 Check-in Date"] = checkin_date
