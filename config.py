@@ -227,6 +227,46 @@ def fetch_feishu_price_table():
     return _fetch_feishu_sheet("price_sheet_id", "price_sheet_id")
 
 
+def fetch_feishu_success_numbers():
+    """获取飞书成功订单表格中的渠道订单号清单（Channel Booking Number 列，
+    使用 success_sheet_id 配置，默认第一列为渠道订单号）"""
+    config = load_feishu_config()
+    app_id = os.environ.get("FEISHU_APP_ID") or config.get("app_id", "")
+    app_secret = os.environ.get("FEISHU_APP_SECRET") or config.get("app_secret", "")
+    spreadsheet_token = os.environ.get("FEISHU_SPREADSHEET_TOKEN") or config.get("spreadsheet_token", "")
+    sheet_id = os.environ.get("FEISHU_SUCCESS_SHEET_ID") or config.get("success_sheet_id", "")
+
+    if not app_id or not app_secret:
+        raise Exception("未配置飞书app_id或app_secret！请检查feishu_config.json")
+    if not spreadsheet_token:
+        raise Exception("未配置spreadsheet_token！请检查feishu_config.json")
+    if not sheet_id:
+        raise Exception("未配置success_sheet_id！请在feishu_config.json中添加success_sheet_id字段")
+
+    token = get_tenant_token(app_id, app_secret)
+    url = f"https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{spreadsheet_token}/values/{sheet_id}"
+    resp = requests.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=12)
+    res = resp.json()
+
+    if res.get("code") != 0:
+        if res.get("code") == 90215:
+            raise Exception(f"错误码90215: 未找到sheetId！请确认feishu_config.json中的success_sheet_id是否正确")
+        if res.get("code") == 99991672:
+            raise Exception(f"错误码99991672: 需要开通飞书权限！请访问以下链接开通权限：\nhttps://open.feishu.cn/app/{app_id}/auth?q=drive:file:readonly&op_from=openapi&token_type=tenant")
+        raise Exception(f"读取成功订单表格失败:{res}")
+
+    values = res["data"]["valueRange"].get("values") or []
+    # 第一行为表头（Channel Booking Number），从第二行起读取第一列
+    nums = []
+    for r in values[1:]:
+        if r and r[0]:
+            n = _parse_feishu_cell(r[0]).strip().replace("\n", "").replace("\r", "")
+            if n and n.lower() != "nan":
+                nums.append(n)
+    print(f"[飞书同步] 成功订单表格读取到 {len(nums)} 个渠道订单号")
+    return nums
+
+
 def write_feishu_price_table(df):
     """写入飞书比价数据表格"""
     return _write_feishu_sheet(df, "price_sheet_id", "price_sheet_id")

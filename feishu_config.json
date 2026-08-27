@@ -4,5 +4,6 @@
   "spreadsheet_token": "DhZssUPeLhxPbEt8gK0cTSCZn5d",
   "sheet_id": "dd6cdc",
   "price_sheet_id": "WH9oZd",
+  "success_sheet_id": "OAiP8B",
   "output_csv": "order_data.csv"
 }

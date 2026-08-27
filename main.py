@@ -11,6 +11,7 @@ from price_compare_dashboard import render_price_compare_dashboard
 from sales_dashboard import render_sales_dashboard
 from Failed_dashboard import render_failed_dashboard
 from Success_dashboard import render_success_dashboard
+from Success_detail import render_success_detail
 
 # 全局页面配置
 st.set_page_config(
@@ -336,12 +337,13 @@ TEXT = {
         "flow": "流程进度跟踪看板",
         "new_order": "新增团单",
         "list_manage": "团单列表管理",
-        "hotel_list": "优势酒店名单",
+        "hotel_list": "酒店加价列表",
         "price_compare": "比价",
         "price_dashboard": "比价记录看板",
         "sales_dashboard": "销售团队统计",
-        "failed_dashboard": "团房失败分析",
         "success_dashboard": "团房成功统计",
+        "success_detail": "团房成功订单详情",
+        "failed_dashboard": "团房失败分析",
         "back": "← 返回数据统计看板"
     },
     "en": {
@@ -360,6 +362,7 @@ TEXT = {
         "sales_dashboard": "Sales Team Stats",
         "failed_dashboard": "Failed Booking Analysis",
         "success_dashboard": "Success Booking Stats",
+        "success_detail": "Success Booking Details",
         "back": "← Back to Dashboard"
     }
 }
@@ -377,7 +380,10 @@ st.divider()
 init_csv()
 df = load_data()
 
-# 根据销售团队过滤数据（仅销售用户）
+# 保留未做账户隔离的全量数据，供 hotel_list 等不做账户限制隔离的页面使用
+full_df = df.copy()
+
+# 根据销售团队过滤数据（仅销售用户）——账户限制隔离
 user_team = st.session_state["user_team"]
 if user_role == "sales" and user_team:
     df = df[df["Salesteam"].str.contains(user_team, case=False, na=False)]
@@ -403,6 +409,7 @@ with st.sidebar:
         "dashboard": t.get("dash", "Dashboard"),
         "sales_dashboard": t.get("sales_dashboard", "Sales Dashboard"),
         "success_dashboard": t.get("success_dashboard", "Success Dashboard"),
+        "success_detail": t.get("success_detail", "Success Detail"),
         "failed_dashboard": t.get("failed_dashboard", "Failed Dashboard"),
         "flow": t.get("flow", "Workflow"),
         "hotel_list": t.get("hotel_list", "Hotel List"),
@@ -414,9 +421,9 @@ with st.sidebar:
     if user_role == "admin":
         show_pages = list(all_pages.keys())
     elif user_role == "OP":
-        show_pages = ["dashboard", "sales_dashboard", "success_dashboard", "failed_dashboard", "flow", "hotel_list", "price_dashboard"]
+        show_pages = ["dashboard", "sales_dashboard", "success_dashboard", "success_detail", "failed_dashboard", "flow", "hotel_list", "price_dashboard"]
     elif user_role == "sales":
-        show_pages = ["dashboard", "flow", "hotel_list", "price_dashboard", "sales_dashboard"]
+        show_pages = ["dashboard", "flow", "hotel_list", "sales_dashboard", "success_detail"]
     else:
         show_pages = ["dashboard", "flow", "hotel_list", "price_dashboard"]
 
@@ -453,6 +460,9 @@ else:
         render_sales_dashboard(df)
     elif active_p == "success_dashboard":
         render_success_dashboard(df)
+    elif active_p == "success_detail":
+        # 按销售团队隔离：sales 只看自己团队成功订单，admin/OP 看全量
+        render_success_detail(df)
     elif active_p == "failed_dashboard":
         render_failed_dashboard(df)
     elif active_p == "flow":
@@ -462,7 +472,8 @@ else:
     elif active_p == "list_manage":
         render_order_manage(df, user_team=user_team)
     elif active_p == "hotel_list":
-        render_hotel_list(df)
+        # hotel_list 不做账户限制隔离，使用全量数据（页面内按 销售团队=ID 自行过滤）
+        render_hotel_list(full_df)
     elif active_p == "price_compare":
         render_price_compare(df)
     elif active_p == "price_dashboard":
