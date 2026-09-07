@@ -60,28 +60,18 @@ def auto_sync_worker():
             print(f"[定时同步] 开始执行自动同步...")
             save_sync_status("🔄 正在同步中...")
             try:
-                sync_df = fetch_feishu_table()
-                if sync_df.empty:
-                    print("[定时同步] 飞书表格无有效数据")
-                    save_sync_status(f"⏳ 等待中，下次同步将在{interval}分钟后", alert=("warning", "飞书表格无有效数据"))
-                    continue
-
-                col_mapping = {
-                    "提交时间 Submitted At": "提交时间 Submitted by",
-                    "状态 Status": "状态",
-                    "销售团队 Salesteam": "Salesteam"
-                }
-                sync_df = sync_df.rename(columns=col_mapping)
-                # 关键修复：使用apply转换，避免int64/float64列赋值字符串失败
-                sync_df["团单号"] = sync_df["团单号"].apply(lambda x: str(x).strip() if pd.notna(x) else "")
-
-                save_data(sync_df)
+                from config import sync_from_feishu
+                synced, deleted = sync_from_feishu()
                 beijing_time = datetime.now(beijing_tz)
                 sync_time_str = beijing_time.strftime("%Y-%m-%d %H:%M:%S")
-                save_sync_status(f"✅ 同步完成于 {sync_time_str}",
-                                alert=("success", f"🔄 自动同步完成！读取{len(sync_df)}条数据，同步时间: {sync_time_str}"),
-                                last_sync_time=sync_time_str)
-                print(f"[定时同步] 完成: 飞书读取{len(sync_df)}条, 完全覆盖本地数据, 时间: {sync_time_str}")
+                if synced == 0:
+                    save_sync_status(f"⏳ 等待中，下次同步将在{interval}分钟后", alert=("warning", "飞书表格无有效数据"))
+                else:
+                    msg = f"🔄 自动同步完成！读取{synced}条数据" + (f"，删除{deleted}条本地多余数据" if deleted else "")
+                    save_sync_status(f"✅ 同步完成于 {sync_time_str}",
+                                    alert=("success", msg),
+                                    last_sync_time=sync_time_str)
+                    print(f"[定时同步] 完成: {synced}条, 删除{deleted}条, 时间: {sync_time_str}")
 
             except Exception as err:
                 import traceback

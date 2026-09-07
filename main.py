@@ -45,6 +45,20 @@ if st.session_state["user_role"] is None:
             if uname in USER_ACCOUNTS and USER_ACCOUNTS[uname]["password"] == pwd:
                 st.session_state["user_role"] = USER_ACCOUNTS[uname]["role"]
                 st.session_state["user_team"] = USER_ACCOUNTS[uname]["team"]
+                # 登录后立即同步飞书数据，确保每次登录都是最新数据
+                with st.spinner("🔄 正在同步飞书数据，请稍候..."):
+                    try:
+                        from config import sync_from_feishu
+                        synced, deleted = sync_from_feishu()
+                        print(f"[登录同步] 完成: {synced}条同步, {deleted}条删除")
+                    except Exception as e:
+                        print(f"[登录同步] 失败: {e}")
+                # 启动后台自动同步线程
+                try:
+                    from order_create import start_auto_sync_thread
+                    start_auto_sync_thread()
+                except Exception as e:
+                    print(f"[自动同步] 线程启动失败: {e}")
                 st.rerun()
             else:
                 st.error("账号或密码错误 / Wrong username or password")

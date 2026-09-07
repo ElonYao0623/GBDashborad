@@ -197,6 +197,122 @@ def save_data(df):
     df = df[expected_cols]
     df.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
 
+def sync_from_feishu():
+    """从飞书同步数据到本地CSV，保留状态持续时间等本地字段。
+
+    提取自 order_create.sync_data()，可在任何位置调用（登录、定时同步等）。
+    返回 (synced_count, deleted_count)，失败抛出异常。
+    """
+    sync_df = fetch_feishu_table()
+    if sync_df is None or sync_df.empty:
+        print("[飞书同步] 飞书表格无有效数据")
+        return 0, 0
+
+    col_mapping = {
+        "提交时间 Submitted At": "提交时间 Submitted by",
+        "状态 Status": "状态",
+        "销售团队 Salesteam": "Salesteam"
+    }
+    sync_df = sync_df.rename(columns=col_mapping)
+    sync_df["团单号"] = sync_df["团单号"].apply(lambda x: str(x).strip() if pd.notna(x) else "")
+
+    current_df = load_data()
+    current_time = datetime.now().strftime("%Y-%m-%d")
+    local_only_orders = set()
+
+    if not current_df.empty:
+        current_df["团单号"] = current_df["团单号"].apply(lambda x: str(x).strip() if pd.notna(x) else "")
+
+        feishu_order_ids = set(sync_df["团单号"].dropna().tolist())
+        current_order_ids = set(current_df["团单号"].dropna().tolist())
+        local_only_orders = current_order_ids - feishu_order_ids
+
+        if local_only_orders:
+            print(f"[飞书同步] 删除本地多余团单号: {local_only_orders}")
+            sync_df = sync_df[~sync_df["团单号"].isin(local_only_orders)]
+
+        current_order_map = {}
+        for _, row in current_df.iterrows():
+            order_no = str(row.get("团单号", "")).strip()
+            if order_no:
+                current_order_map[order_no] = row.to_dict()
+
+        duration_cols = list(STATUS_DURATION_COL_MAP.values())
+
+        for idx, row in sync_df.iterrows():
+            order_no = str(row.get("团单号", "")).strip()
+            new_status = str(row.get("状态", "")).strip()
+            new_std_status = get_standard_status(new_status)
+
+            if order_no in current_order_map:
+                current_row = current_order_map[order_no]
+                old_status = str(current_row.get("状态", "")).strip()
+                old_std_status = get_standard_status(old_status)
+                old_status_change_time = str(current_row.get("上次状态变更时间", "")).strip()
+                if not old_status_change_time:
+                    old_status_change_time = str(current_row.get("最后更新时间", "")).strip()
+
+                # 复制已有的状态持续时间数据
+                for dc in duration_cols:
+                    existing_val = str(current_row.get(dc, "")).strip()
+                    if existing_val:
+                        if dc not in sync_df.columns:
+                            sync_df[dc] = ""
+                        sync_df.at[idx, dc] = existing_val
+
+                # 复制"上次状态变更时间"到 sync_df（避免被飞书数据覆盖）
+                if old_status_change_time:
+                    if "上次状态变更时间" not in sync_df.columns:
+                        sync_df["上次状态变更时间"] = ""
+                    sync_df.at[idx, "上次状态变更时间"] = old_status_change_time
+
+                # 状态变更时，记录上一状态持续天数
+                if new_std_status != old_std_status and old_std_status and old_status_change_time:
+                    try:
+                        for fmt in ["%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d"]:
+                            try:
+                                old_date = datetime.strptime(old_status_change_time, fmt).date()
+                                new_date = datetime.strptime(current_time, "%Y-%m-%d").date()
+                                duration_days = (new_date - old_date).days
+                                duration_col = STATUS_DURATION_COL_MAP.get(old_std_status, "")
+                                if duration_col:
+                                    existing_val = str(current_row.get(duration_col, "")).strip()
+                                    if existing_val:
+                                        try:
+                                            duration_days += int(existing_val)
+                                        except ValueError:
+                                            pass
+                                    if duration_col not in sync_df.columns:
+                                        sync_df[duration_col] = ""
+                                    sync_df.at[idx, duration_col] = str(duration_days)
+                                    sync_df.at[idx, "上次状态变更时间"] = current_time
+                                    print(f"[飞书同步] 状态变更 {order_no}: {old_std_status}→{new_std_status}, 持续{duration_days}天→{duration_col}")
+                                break
+                            except ValueError:
+                                continue
+                    except Exception as e:
+                        print(f"[飞书同步] 状态持续天数记录错误 {order_no}: {e}")
+            else:
+                # 新订单，初始化状态持续时间列和"上次状态变更时间"
+                for dc in duration_cols:
+                    if dc not in sync_df.columns:
+                        sync_df[dc] = ""
+                if "上次状态变更时间" not in sync_df.columns:
+                    sync_df["上次状态变更时间"] = ""
+                sync_df.at[idx, "上次状态变更时间"] = current_time
+
+        # 确保所有状态持续时间列都存在
+        for dc in duration_cols:
+            if dc not in sync_df.columns:
+                sync_df[dc] = ""
+        if "上次状态变更时间" not in sync_df.columns:
+            sync_df["上次状态变更时间"] = ""
+
+    save_data(sync_df)
+    print(f"[飞书同步] 完成: 读取{len(sync_df)}条, 删除{len(local_only_orders)}条本地多余数据")
+    return len(sync_df), len(local_only_orders)
+
+
 # ---------------- 飞书API工具（使用电子表格Spreadsheet API） ----------------
 def get_tenant_token(app_id, app_secret):
     url = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
@@ -265,6 +381,96 @@ def fetch_feishu_success_numbers():
                 nums.append(n)
     print(f"[飞书同步] 成功订单表格读取到 {len(nums)} 个渠道订单号")
     return nums
+
+
+def sync_feishu_success_numbers(new_numbers):
+    """将新渠道订单号追加去重写入飞书成功订单表格（非覆盖，保留原有数据）。
+
+    流程：读取飞书现有 → 合并 new_numbers → 去重保序 → 整表覆盖写回。
+    飞书写入 API 是覆盖式，因此通过「合并去重后整表写回」实现追加去重效果。
+    表头固定为 "Channel Booking Number"，渠道订单号写入 A 列。
+    """
+    if not new_numbers:
+        print("[飞书同步] 无新数据需写入")
+        return {"before": 0, "after": 0, "added": 0, "duplicates": 0}
+
+    # 1. 读取飞书现有渠道订单号
+    try:
+        existing = fetch_feishu_success_numbers()
+    except Exception as e:
+        print(f"[飞书同步] 读取现有数据失败，按空表处理: {e}")
+        existing = []
+
+    existing_set = set(existing)
+    # 2. 合并去重保序：保留原有顺序，追加新出现的
+    merged = list(existing)
+    added = []
+    for n in new_numbers:
+        n = str(n).strip()
+        if not n or n.lower() == "nan":
+            continue
+        if n in existing_set:
+            continue
+        merged.append(n)
+        existing_set.add(n)
+        added.append(n)
+
+    before_count = len(existing)
+    after_count = len(merged)
+    added_count = len(added)
+    duplicates = len(new_numbers) - added_count
+    print(f"[飞书同步] 合并去重：原有 {before_count} + 新增 {added_count}（重复跳过 {duplicates}）= 合并后 {after_count}")
+
+    if added_count == 0:
+        print("[飞书同步] 无新增渠道订单号，跳过写回")
+        return {"before": before_count, "after": after_count, "added": 0, "duplicates": duplicates}
+
+    # 3. 整表写回（表头 + 全量去重后的渠道订单号）
+    config = load_feishu_config()
+    app_id = os.environ.get("FEISHU_APP_ID") or config.get("app_id", "")
+    app_secret = os.environ.get("FEISHU_APP_SECRET") or config.get("app_secret", "")
+    spreadsheet_token = os.environ.get("FEISHU_SPREADSHEET_TOKEN") or config.get("spreadsheet_token", "")
+    sheet_id = os.environ.get("FEISHU_SUCCESS_SHEET_ID") or config.get("success_sheet_id", "")
+
+    if not (app_id and app_secret and spreadsheet_token and sheet_id):
+        raise Exception("飞书配置不完整，无法写回（需 app_id/app_secret/spreadsheet_token/success_sheet_id）")
+
+    token = get_tenant_token(app_id, app_secret)
+    url = f"https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{spreadsheet_token}/values"
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    # 构造写入数据：表头 + 渠道订单号单列
+    values = [["Channel Booking Number"]] + [[n] for n in merged]
+
+    # 先清空 A 列前 2000 行，再写入（避免残留脏数据）
+    max_rows = max(2000, len(values) + 10)
+    clear_body = {
+        "valueRange": {
+            "range": f"{sheet_id}!A1:A{max_rows}",
+            "values": [[""]] * max_rows,
+        },
+        "valueInputOption": "USER_ENTERED",
+    }
+    try:
+        clear_resp = requests.put(url, headers=headers, json=clear_body, timeout=15)
+        print(f"[飞书同步] 清空 A 列响应 code={clear_resp.json().get('code')}")
+    except Exception as clear_err:
+        print(f"[飞书同步] 清空 A 列失败（继续写入）: {clear_err}")
+
+    body = {
+        "valueRange": {
+            "range": f"{sheet_id}!A1:A{len(values)}",
+            "values": values,
+        },
+        "valueInputOption": "USER_ENTERED",
+    }
+    resp = requests.put(url, headers=headers, json=body, timeout=15)
+    res = resp.json()
+    if res.get("code") is not None and str(res.get("code")) != "0":
+        raise Exception(f"写入飞书成功订单表格失败: {res}")
+
+    print(f"[飞书同步] 已写回 {after_count} 条渠道订单号（新增 {added_count} 条）")
+    return {"before": before_count, "after": after_count, "added": added_count, "duplicates": duplicates, "added_list": added}
 
 
 def write_feishu_price_table(df):
