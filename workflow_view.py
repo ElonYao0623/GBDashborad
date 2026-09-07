@@ -109,6 +109,25 @@ def render_workflow_view(df):
         workflow_df["入住日期 Check-in Date"] = ""
     workflow_df["距离入住天数"] = workflow_df["入住日期 Check-in Date"].apply(calc_day).astype("Int64")
     
+    # 确保"上次状态变更时间"列存在
+    if "上次状态变更时间" not in workflow_df.columns:
+        workflow_df["上次状态变更时间"] = ""
+    if "最后更新时间" not in workflow_df.columns:
+        workflow_df["最后更新时间"] = ""
+    if "提交时间 Submitted by" not in workflow_df.columns:
+        workflow_df["提交时间 Submitted by"] = ""
+    
+    # 状态持续天数：以"上次状态变更时间"为参考（仅状态变更时更新），
+    # 空则回退到"最后更新时间"，再回退到"提交时间"
+    def get_status_ref_time(row):
+        for col in ["上次状态变更时间", "最后更新时间", "提交时间 Submitted by"]:
+            val = str(row.get(col, "")).strip() if col in row.index else ""
+            if val and val.lower() not in ["nan", "none", ""]:
+                return val
+        return ""
+    
+    workflow_df["_状态参考时间"] = workflow_df.apply(get_status_ref_time, axis=1)
+    
     def calc_status_days(s):
         try:
             x = str(s).strip()
@@ -117,16 +136,16 @@ def render_workflow_view(df):
             for fmt in ["%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d"]:
                 try:
                     d = datetime.strptime(x, fmt).date()
-                    return (date.today() - d).days
+                    # +1 使当天设的状态显示"持续1天"而非"0天"
+                    days = (date.today() - d).days + 1
+                    return str(days) if days >= 1 else "1"
                 except ValueError:
                     continue
             return t["Unknown"]
         except:
             return t["Unknown"]
     
-    if "最后更新时间" not in workflow_df.columns:
-        workflow_df["最后更新时间"] = ""
-    workflow_df["状态持续天数"] = workflow_df["最后更新时间"].apply(calc_status_days)
+    workflow_df["状态持续天数"] = workflow_df["_状态参考时间"].apply(calc_status_days)
     
     # 确保搜索所需的列存在
     for col in ["团单号", "客户名称 Customer Name", "销售姓名 Sales Name", "Salesteam", "Channel OP"]:
